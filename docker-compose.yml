@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: infra/docker/backend/Dockerfile.dev
+    container_name: pryvora_backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/var/www/html
+      - backend_vendor:/var/www/html/vendor
+      - backend_var:/var/www/html/var
+    environment:
+      DATABASE_URL: "postgresql://pryvora:pryvora@db:5432/pryvora?serverVersion=16&charset=utf8"
+      APP_ENV: dev
+      APP_SECRET: dev_secret_change_in_production
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - pryvora_network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: infra/docker/frontend/Dockerfile.dev
+    container_name: pryvora_frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+    environment:
+      VITE_API_URL: http://localhost:8000
+    networks:
+      - pryvora_network
+
+  db:
+    image: postgres:16-alpine
+    container_name: pryvora_db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: pryvora
+      POSTGRES_USER: pryvora
+      POSTGRES_PASSWORD: pryvora
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pryvora"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pryvora_network
+
+volumes:
+  backend_vendor:
+  backend_var:
+  frontend_node_modules:
+  postgres_data:
+
+networks:
+  pryvora_network:
+    driver: bridge
+
