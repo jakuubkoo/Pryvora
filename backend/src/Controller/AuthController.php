@@ -63,7 +63,7 @@ class AuthController extends AbstractController
         $token = $JWTTokenManager->create($user);
 
         $refreshTokenValue = bin2hex(random_bytes(64));
-        $validUntil = new \DateTimeImmutable('+30 days');
+        $validUntil = new \DateTime('+30 days');
 
         $rt = new RefreshToken();
         $rt->setRefreshToken($refreshTokenValue);
@@ -109,7 +109,7 @@ class AuthController extends AbstractController
             return new JsonResponse(['error' => 'Invalid refresh token'], Response::HTTP_UNAUTHORIZED);
         }
 
-        if ($refreshToken->getValid() < new \DateTimeImmutable()) {
+        if ($refreshToken->getValid() < new \DateTime()) {
             return new JsonResponse(['error' => 'Refresh token expired'], Response::HTTP_UNAUTHORIZED);
         }
 
@@ -120,7 +120,7 @@ class AuthController extends AbstractController
         }
 
         $newRefreshTokenValue = bin2hex(random_bytes(64));
-        $newValidUntil = new \DateTimeImmutable('+30 days');
+        $newValidUntil = new \DateTime('+30 days');
 
         $refreshToken->setRefreshToken($newRefreshTokenValue);
         $refreshToken->setValid($newValidUntil);
@@ -162,7 +162,7 @@ class AuthController extends AbstractController
 
         $cookie = Cookie::create(self::REFRESH_COOKIE)
             ->withValue('')
-            ->withExpires(new \DateTimeImmutable('-1 day'))
+            ->withExpires(new \DateTime('-1 day'))
             ->withPath('/api/auth')
             ->withHttpOnly(true)
             ->withSecure((bool)($_ENV['COOKIE_SECURE'] ?? false))
