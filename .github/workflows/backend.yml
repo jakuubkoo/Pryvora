@@ -33,6 +33,11 @@ jobs:
             ~/.composer/cache
           key: composer-${{ runner.os }}-${{ hashFiles('backend/composer.lock') }}
 
-      - run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Install deps (no auto-scripts)
+        run: composer install --no-interaction --prefer-dist --no-progress --no-scripts
 
-      - run: composer check
+      - name: CS Fixer (dry-run)
+        run: php vendor/bin/php-cs-fixer fix --config=.php-cs-fixer.php --dry-run --diff
+
+      - name: PHPStan
+        run: php vendor/bin/phpstan analyse -c phpstan.dist.neon --no-progress
