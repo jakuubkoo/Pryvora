@@ -53,7 +53,7 @@ class AuthController extends AbstractController
             return new JsonResponse(['error' => 'Email and password are required'], Response::HTTP_BAD_REQUEST);
         }
 
-        /** @var User $user */
+        /** @var User|null $user */
         $user = $entityManager->getRepository(User::class)->findOneBy(['email' => $data['email']]);
 
         if (!$user || !$userPasswordHasher->isPasswordValid($user, $data['password'])) {
@@ -102,7 +102,7 @@ class AuthController extends AbstractController
             return new JsonResponse(['error' => 'Refresh token not provided'], Response::HTTP_BAD_REQUEST);
         }
 
-        /** @var RefreshToken $refreshToken */
+        /** @var RefreshToken|null $refreshToken */
         $refreshToken = $entityManager->getRepository(RefreshToken::class)->findOneBy(['refreshToken' => $refreshTokenValue]);
 
         if (!$refreshToken) {
