@@ -19,7 +19,6 @@ use Symfony\Component\Routing\Attribute\Route;
 #[Route('/api/auth')]
 class AuthController extends AbstractController
 {
-
     private const REFRESH_COOKIE = 'pryvora_refresh';
 
     #[Route('/register', name: 'app_register', methods: ['POST'])]
@@ -31,7 +30,7 @@ class AuthController extends AbstractController
             return new JsonResponse(['error' => 'Email and password are required'], Response::HTTP_BAD_REQUEST);
         }
 
-        if($entityManager->getRepository(User::class)->findOneBy(['email' => $data['email']])) {
+        if ($entityManager->getRepository(User::class)->findOneBy(['email' => $data['email']])) {
             return new JsonResponse(['error' => 'Email already exists'], Response::HTTP_CONFLICT);
         }
 
@@ -78,14 +77,13 @@ class AuthController extends AbstractController
             ->withExpires($validUntil)
             ->withPath('/api/auth')
             ->withHttpOnly(true)
-            ->withSecure((bool)($_ENV['COOKIE_SECURE'] ?? false))
+            ->withSecure((bool) ($_ENV['COOKIE_SECURE'] ?? false))
             ->withSameSite('lax');
-
 
         $response = new JsonResponse([
             'message' => 'Login successful',
             'token' => $token,
-            'expires_at' => $validUntil
+            'expires_at' => $validUntil,
         ], Response::HTTP_OK);
 
         $response->headers->setCookie($cookie);
@@ -131,7 +129,7 @@ class AuthController extends AbstractController
             ->withExpires($newValidUntil)
             ->withPath('/api/auth')
             ->withHttpOnly(true)
-            ->withSecure((bool)($_ENV['COOKIE_SECURE'] ?? false))
+            ->withSecure((bool) ($_ENV['COOKIE_SECURE'] ?? false))
             ->withSameSite('lax');
 
         $token = $JWTTokenManager->create($user);
@@ -139,7 +137,7 @@ class AuthController extends AbstractController
         $response = new JsonResponse([
             'message' => 'Token refreshed',
             'token' => $token,
-            'expires_at' => $newValidUntil
+            'expires_at' => $newValidUntil,
         ], Response::HTTP_OK);
 
         $response->headers->setCookie($cookie);
@@ -152,7 +150,7 @@ class AuthController extends AbstractController
     {
         $refreshTokenValue = $request->cookies->get(self::REFRESH_COOKIE);
 
-        if($refreshTokenValue){
+        if ($refreshTokenValue) {
             $refreshToken = $entityManager->getRepository(RefreshToken::class)->findOneBy(['refreshToken' => $refreshTokenValue]);
             if ($refreshToken) {
                 $entityManager->remove($refreshToken);
@@ -165,7 +163,7 @@ class AuthController extends AbstractController
             ->withExpires(new \DateTime('-1 day'))
             ->withPath('/api/auth')
             ->withHttpOnly(true)
-            ->withSecure((bool)($_ENV['COOKIE_SECURE'] ?? false))
+            ->withSecure((bool) ($_ENV['COOKIE_SECURE'] ?? false))
             ->withSameSite('lax');
 
         $response = new JsonResponse(['message' => 'Logout successful'], Response::HTTP_OK);
@@ -173,5 +171,4 @@ class AuthController extends AbstractController
 
         return $response;
     }
-
 }

@@ -1,0 +1,38 @@
+name: backend
+
+on:
+  pull_request:
+    branches: [ develop, main ]
+    paths:
+      - "backend/**"
+  push:
+    branches: [ develop, main ]
+    paths:
+      - "backend/**"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          coverage: none
+
+      - name: Cache Composer
+        uses: actions/cache@v4
+        with:
+          path: |
+            backend/vendor
+            ~/.composer/cache
+          key: composer-${{ runner.os }}-${{ hashFiles('backend/composer.lock') }}
+
+      - run: composer install --no-interaction --prefer-dist --no-progress
+
+      - run: composer check

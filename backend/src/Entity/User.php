@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Entity;
 
 use App\Repository\UserRepository;
@@ -40,7 +42,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
     /**
      * Retrieves the email of the user.
      *
-     * @return string The email address of the user.
+     * @return string the email address of the user
      */
     public function getEmail(): string
     {
@@ -61,7 +63,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
      */
     public function getUserIdentifier(): string
     {
-        if ($this->email === '') {
+        if ('' === $this->email) {
             throw new \LogicException('User email is empty.');
         }
 
