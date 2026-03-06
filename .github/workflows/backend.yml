@@ -39,5 +39,8 @@ jobs:
       - name: CS Fixer (dry-run)
         run: php vendor/bin/php-cs-fixer fix --config=.php-cs-fixer.dist.php --dry-run --diff
 
+      - name: Warm up Symfony cache
+        run: php bin/console cache:warmup --env=dev
+
       - name: PHPStan
         run: php vendor/bin/phpstan analyse -c phpstan.dist.neon --no-progress
