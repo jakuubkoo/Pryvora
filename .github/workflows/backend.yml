@@ -41,6 +41,11 @@ jobs:
           echo "APP_ENV=test" > .env
           echo "APP_SECRET=test_secret_for_ci" >> .env
           echo "DATABASE_URL=postgresql://test:test@localhost:5432/test?serverVersion=16&charset=utf8" >> .env
+          echo "DEFAULT_URI=http://localhost" >> .env
+          echo "FRONTEND_URL=http://localhost:5173" >> .env
+          echo "JWT_SECRET_KEY=%kernel.project_dir%/config/jwt/private.pem" >> .env
+          echo "JWT_PUBLIC_KEY=%kernel.project_dir%/config/jwt/public.pem" >> .env
+          echo "JWT_PASSPHRASE=test_passphrase" >> .env
 
       - name: CS Fixer (dry-run)
         run: php vendor/bin/php-cs-fixer fix --config=.php-cs-fixer.dist.php --dry-run --diff
