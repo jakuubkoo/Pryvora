@@ -22,6 +22,14 @@ export default function Settings()
   const [show_disable_modal, set_show_disable_modal] = useState(false)
   const [setup_step, set_setup_step] = useState(1)
 
+  // Password change state
+  const [current_password, set_current_password] = useState('')
+  const [new_password, set_new_password] = useState('')
+  const [confirm_password, set_confirm_password] = useState('')
+  const [password_loading, set_password_loading] = useState(false)
+  const [password_error, set_password_error] = useState('')
+  const [password_success, set_password_success] = useState('')
+
   useEffect(() =>
   {
     if (user)
@@ -154,6 +162,57 @@ export default function Settings()
     set_error('')
   }
 
+  const handle_change_password = async (e) =>
+  {
+    e.preventDefault()
+    set_password_error('')
+    set_password_success('')
+
+    if (new_password !== confirm_password)
+    {
+      set_password_error('New passwords do not match')
+      return
+    }
+
+    if (new_password.length < 6)
+    {
+      set_password_error('Password must be at least 6 characters')
+      return
+    }
+
+    set_password_loading(true)
+
+    try
+    {
+      const response = await api_request(`${import.meta.env.VITE_API_URL}/api/user/change-password`, {
+        method: 'POST',
+        body: JSON.stringify({
+          current_password: current_password,
+          new_password: new_password,
+        }),
+      })
+
+      if (!response.ok)
+      {
+        const error_data = await response.json()
+        throw new Error(error_data.error || 'Failed to change password')
+      }
+
+      set_password_success('Password changed successfully!')
+      set_current_password('')
+      set_new_password('')
+      set_confirm_password('')
+    }
+    catch (err)
+    {
+      set_password_error(err.message)
+    }
+    finally
+    {
+      set_password_loading(false)
+    }
+  }
+
   return (
     <AppLayout title="Settings">
       <div className="p-6 space-y-6">
@@ -209,6 +268,82 @@ export default function Settings()
                 </Button>
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-[#1a1a1a] bg-[#0f0f0f]">
+          <CardHeader>
+            <CardTitle className="text-[#e5e5e5]">Change Password</CardTitle>
+            <CardDescription className="text-[#888888]">
+              Update your password to keep your account secure
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handle_change_password} className="space-y-4">
+              {password_error && (
+                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
+                  <p className="text-sm text-red-400">{password_error}</p>
+                </div>
+              )}
+              {password_success && (
+                <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+                  <p className="text-sm text-green-400">{password_success}</p>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="current_password" className="text-sm text-[#e5e5e5]">
+                  Current Password
+                </Label>
+                <Input
+                  id="current_password"
+                  type="password"
+                  value={current_password}
+                  onChange={(e) => set_current_password(e.target.value)}
+                  required
+                  className="bg-[#1a1a1a] border-[#2a2a2a] text-[#e5e5e5] placeholder:text-[#666666]"
+                  placeholder="Enter your current password"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="new_password" className="text-sm text-[#e5e5e5]">
+                  New Password
+                </Label>
+                <Input
+                  id="new_password"
+                  type="password"
+                  value={new_password}
+                  onChange={(e) => set_new_password(e.target.value)}
+                  required
+                  className="bg-[#1a1a1a] border-[#2a2a2a] text-[#e5e5e5] placeholder:text-[#666666]"
+                  placeholder="Enter your new password"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="confirm_password" className="text-sm text-[#e5e5e5]">
+                  Confirm New Password
+                </Label>
+                <Input
+                  id="confirm_password"
+                  type="password"
+                  value={confirm_password}
+                  onChange={(e) => set_confirm_password(e.target.value)}
+                  required
+                  className="bg-[#1a1a1a] border-[#2a2a2a] text-[#e5e5e5] placeholder:text-[#666666]"
+                  placeholder="Confirm your new password"
+                />
+              </div>
+
+              <Button
+                type="submit"
+                disabled={password_loading}
+                className="bg-[#e5e5e5] text-[#0a0a0a] hover:bg-[#d4d4d4]"
+              >
+                {password_loading ? 'Changing Password...' : 'Change Password'}
+              </Button>
+            </form>
           </CardContent>
         </Card>
       </div>
