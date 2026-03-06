@@ -5,16 +5,23 @@ RUN apk add --no-cache \
     postgresql-dev \
     icu-dev \
     libzip-dev \
+    libpng-dev \
+    libjpeg-turbo-dev \
+    freetype-dev \
     git \
     unzip \
     bash
+
+# Configure GD extension
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg
 
 # Install PHP extensions
 RUN docker-php-ext-install \
     pdo_pgsql \
     intl \
     zip \
-    opcache
+    opcache \
+    gd
 
 # Install Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer

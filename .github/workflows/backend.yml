@@ -1,0 +1,64 @@
+name: backend
+
+on:
+  pull_request:
+    branches: [ develop, main ]
+    paths:
+      - "backend/**"
+  push:
+    branches: [ develop, main ]
+    paths:
+      - "backend/**"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          coverage: none
+
+      - name: Cache Composer
+        uses: actions/cache@v4
+        with:
+          path: |
+            backend/vendor
+            ~/.composer/cache
+          key: composer-${{ runner.os }}-${{ hashFiles('backend/composer.lock') }}
+
+      - name: Install deps (no auto-scripts)
+        run: composer install --no-interaction --prefer-dist --no-progress --no-scripts
+
+      - name: Create .env file for CI
+        run: |
+          echo "APP_ENV=dev" > .env
+          echo "APP_SECRET=test_secret_for_ci" >> .env
+          echo "DATABASE_URL=postgresql://test:test@localhost:5432/test?serverVersion=16&charset=utf8" >> .env
+          echo "DEFAULT_URI=http://localhost" >> .env
+          echo "FRONTEND_URL=http://localhost:5173" >> .env
+          echo "JWT_SECRET_KEY=%kernel.project_dir%/config/jwt/private.pem" >> .env
+          echo "JWT_PUBLIC_KEY=%kernel.project_dir%/config/jwt/public.pem" >> .env
+          echo "JWT_PASSPHRASE=test_passphrase" >> .env
+
+      - name: Generate JWT keys
+        run: |
+          mkdir -p config/jwt
+          openssl genrsa -out config/jwt/private.pem 2048
+          openssl rsa -in config/jwt/private.pem -pubout -out config/jwt/public.pem
+          chmod 644 config/jwt/private.pem config/jwt/public.pem
+
+      - name: CS Fixer (dry-run)
+        run: php vendor/bin/php-cs-fixer fix --config=.php-cs-fixer.dist.php --dry-run --diff
+
+      - name: Warm up Symfony cache
+        run: php bin/console cache:warmup --env=dev
+
+      - name: PHPStan
+        run: php vendor/bin/phpstan analyse -c phpstan.dist.neon --no-progress
