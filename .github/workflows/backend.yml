@@ -37,7 +37,7 @@ jobs:
         run: composer install --no-interaction --prefer-dist --no-progress --no-scripts
 
       - name: CS Fixer (dry-run)
-        run: php vendor/bin/php-cs-fixer fix --config=.php-cs-fixer.php --dry-run --diff
+        run: php vendor/bin/php-cs-fixer fix --config=.php-cs-fixer.dist.php --dry-run --diff
 
       - name: PHPStan
         run: php vendor/bin/phpstan analyse -c phpstan.dist.neon --no-progress
