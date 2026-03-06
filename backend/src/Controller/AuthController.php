@@ -6,6 +6,7 @@ namespace App\Controller;
 
 use App\Entity\RefreshToken;
 use App\Entity\User;
+use App\Service\TwoFactorService;
 use Doctrine\ORM\EntityManagerInterface;
 use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -20,6 +21,11 @@ use Symfony\Component\Routing\Attribute\Route;
 class AuthController extends AbstractController
 {
     private const REFRESH_COOKIE = 'pryvora_refresh';
+
+    public function __construct(
+        private readonly JWTTokenManagerInterface $jwtTokenManager,
+    ) {
+    }
 
     #[Route('/register', name: 'app_register', methods: ['POST'])]
     public function register(Request $request, EntityManagerInterface $entityManager, UserPasswordHasherInterface $userPasswordHasher): JsonResponse
@@ -44,7 +50,7 @@ class AuthController extends AbstractController
     }
 
     #[Route('/login', name: 'app_login', methods: ['POST'])]
-    public function login(Request $request, EntityManagerInterface $entityManager, UserPasswordHasherInterface $userPasswordHasher, JWTTokenManagerInterface $JWTTokenManager): JsonResponse
+    public function login(Request $request, EntityManagerInterface $entityManager, UserPasswordHasherInterface $userPasswordHasher): JsonResponse
     {
         $data = json_decode($request->getContent(), true) ?? [];
 
@@ -59,7 +65,52 @@ class AuthController extends AbstractController
             return new JsonResponse(['error' => 'Invalid credentials'], Response::HTTP_UNAUTHORIZED);
         }
 
-        $token = $JWTTokenManager->create($user);
+        if ($user->isTwoFactorEnabled()) {
+            $request->getSession()->set('2fa_user_email', $user->getEmail());
+
+            return new JsonResponse([
+                'requires_2fa' => true,
+                'message' => '2FA verification required',
+            ], Response::HTTP_OK);
+        }
+
+        return $this->complete_login($user, $entityManager);
+    }
+
+    #[Route('/verify-2fa', name: 'app_verify_2fa', methods: ['POST'])]
+    public function verify_2fa(Request $request, EntityManagerInterface $entityManager, TwoFactorService $twoFactorService): JsonResponse
+    {
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        if (empty($data['code'])) {
+            return new JsonResponse(['error' => 'Verification code is required'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $email = $request->getSession()->get('2fa_user_email');
+
+        if (!$email) {
+            return new JsonResponse(['error' => 'No pending 2FA verification'], Response::HTTP_BAD_REQUEST);
+        }
+
+        /** @var User|null $user */
+        $user = $entityManager->getRepository(User::class)->findOneBy(['email' => $email]);
+
+        if (!$user) {
+            return new JsonResponse(['error' => 'User not found'], Response::HTTP_UNAUTHORIZED);
+        }
+
+        if (!$twoFactorService->verify_code($user, $data['code'])) {
+            return new JsonResponse(['error' => 'Invalid verification code'], Response::HTTP_UNAUTHORIZED);
+        }
+
+        $request->getSession()->remove('2fa_user_email');
+
+        return $this->complete_login($user, $entityManager);
+    }
+
+    private function complete_login(User $user, EntityManagerInterface $entityManager): JsonResponse
+    {
+        $token = $this->jwtTokenManager->create($user);
 
         $refreshTokenValue = bin2hex(random_bytes(64));
         $validUntil = new \DateTime('+30 days');

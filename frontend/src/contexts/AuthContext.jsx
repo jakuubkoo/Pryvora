@@ -125,6 +125,40 @@ export function AuthProvider({ children })
     }
 
     const data = await response.json()
+
+    if (data.requires_2fa)
+    {
+      return { requires_2fa: true }
+    }
+
+    access_token = data.token
+
+    const user_response = await api_request(`${import.meta.env.VITE_API_URL}/api/user/me`)
+    if (user_response.ok)
+    {
+      const user_data = await user_response.json()
+      set_user(user_data)
+    }
+
+    return data
+  }
+
+  const verify_2fa = async (code) =>
+  {
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/verify-2fa`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ code }),
+    })
+
+    if (!response.ok)
+    {
+      const error = await response.json()
+      throw new Error(error.error || '2FA verification failed')
+    }
+
+    const data = await response.json()
     access_token = data.token
 
     const user_response = await api_request(`${import.meta.env.VITE_API_URL}/api/user/me`)
@@ -158,7 +192,7 @@ export function AuthProvider({ children })
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, register, check_auth }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, register, check_auth, verify_2fa, api_request }}>
       {children}
     </AuthContext.Provider>
   )
