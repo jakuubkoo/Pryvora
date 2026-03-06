@@ -6,13 +6,14 @@ namespace App\Entity;
 
 use App\Repository\UserRepository;
 use Doctrine\ORM\Mapping as ORM;
+use Scheb\TwoFactorBundle\Model\Google\TwoFactorInterface;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 #[ORM\Entity(repositoryClass: UserRepository::class)]
 #[ORM\Table(name: '`user`')]
 #[ORM\UniqueConstraint(name: 'UNIQ_IDENTIFIER_EMAIL', fields: ['email'])]
-class User implements UserInterface, PasswordAuthenticatedUserInterface
+class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFactorInterface
 {
     #[ORM\Id]
     #[ORM\GeneratedValue]
@@ -33,6 +34,15 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
      */
     #[ORM\Column]
     private string $password = '';
+
+    #[ORM\Column]
+    private ?bool $twoFactorEnabled = null;
+
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $twoFactorSecret = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $twoFactorConfirmedAt = null;
 
     public function getId(): ?int
     {
@@ -116,5 +126,56 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         $data["\0".self::class."\0password"] = hash('crc32c', $this->password);
 
         return $data;
+    }
+
+    public function isTwoFactorEnabled(): ?bool
+    {
+        return $this->twoFactorEnabled;
+    }
+
+    public function setTwoFactorEnabled(bool $twoFactorEnabled): static
+    {
+        $this->twoFactorEnabled = $twoFactorEnabled;
+
+        return $this;
+    }
+
+    public function getTwoFactorSecret(): ?string
+    {
+        return $this->twoFactorSecret;
+    }
+
+    public function setTwoFactorSecret(?string $twoFactorSecret): static
+    {
+        $this->twoFactorSecret = $twoFactorSecret;
+
+        return $this;
+    }
+
+    public function getTwoFactorConfirmedAt(): ?\DateTimeImmutable
+    {
+        return $this->twoFactorConfirmedAt;
+    }
+
+    public function setTwoFactorConfirmedAt(?\DateTimeImmutable $twoFactorConfirmedAt): static
+    {
+        $this->twoFactorConfirmedAt = $twoFactorConfirmedAt;
+
+        return $this;
+    }
+
+    public function isGoogleAuthenticatorEnabled(): bool
+    {
+        return $this->twoFactorEnabled ?? false;
+    }
+
+    public function getGoogleAuthenticatorUsername(): string
+    {
+        return $this->email;
+    }
+
+    public function getGoogleAuthenticatorSecret(): ?string
+    {
+        return $this->twoFactorSecret;
     }
 }

@@ -1577,6 +1577,15 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     code_reuse_cache?: scalar|Param|null, // Default: null
  *     code_reuse_cache_duration?: int|Param, // Default: 60
  *     code_reuse_default_handler?: scalar|Param|null, // Default: null
+ *     google?: bool|array{
+ *         enabled?: scalar|Param|null, // Default: false
+ *         form_renderer?: scalar|Param|null, // Default: null
+ *         issuer?: scalar|Param|null, // Default: null
+ *         server_name?: scalar|Param|null, // Default: null
+ *         template?: scalar|Param|null, // Default: "@SchebTwoFactor/Authentication/form.html.twig"
+ *         digits?: int|Param, // Default: 6
+ *         leeway?: int|Param, // Default: 0
+ *     },
  * }
  * @psalm-type ConfigType = array{
  *     imports?: ImportsConfig,
