@@ -8,7 +8,6 @@ use Symfony\Component\Validator\Constraints as Assert;
 
 class NoteDTO
 {
-
     public function __construct(
         #[Assert\NotBlank(message: 'Title is required')]
         #[Assert\Length(min: 3, max: 255, minMessage: 'Title must be at least 3 characters', maxMessage: 'Title cannot be longer than 255 characters')]
@@ -23,9 +22,9 @@ class NoteDTO
     /**
      * Creates a new instance of the class from the given array of data.
      *
-     * @param array<string, mixed> $data An associative array containing the required data.
+     * @param array<string, mixed> $data an associative array containing the required data
      *
-     * @return self A new instance of the class.
+     * @return self a new instance of the class
      */
     public static function fromArray(array $data): self
     {

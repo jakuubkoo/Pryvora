@@ -286,7 +286,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
     {
         if (!$this->notes->contains($note)) {
             $this->notes->add($note);
-            $note->setUserId($this);
+            $note->setUser($this);
         }
 
         return $this;
@@ -296,8 +296,8 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
     {
         if ($this->notes->removeElement($note)) {
             // set the owning side to null (unless already changed)
-            if ($note->getUserId() === $this) {
-                $note->setUserId(null);
+            if ($note->getUser() === $this) {
+                $note->setUser(null);
             }
         }
 

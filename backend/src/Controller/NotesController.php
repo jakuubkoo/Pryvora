@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\DTO\NoteDTO;
-use App\DTO\RegisterUserDTO;
 use App\Entity\Note;
 use App\Entity\User;
 use App\Service\EncryptionService;
@@ -28,8 +27,7 @@ class NotesController extends AbstractController
         EntityManagerInterface $entityManager,
         ValidatorInterface $validator,
         EncryptionService $encryptionService,
-    )
-    {
+    ) {
         $this->entityManager = $entityManager;
         $this->validator = $validator;
         $this->encryptionService = $encryptionService;
@@ -49,7 +47,15 @@ class NotesController extends AbstractController
         $notes = $user->getNotes();
 
         return new JsonResponse([
-            'notes' => $notes,
+            'notes' => array_values($notes->map(function (Note $note) {
+                return [
+                    'id' => $note->getId(),
+                    'title' => $note->getTitle(),
+                    'content' => $this->encryptionService->decrypt($note->getContent() ?? ''),
+                    'created_at' => $note->getCreatedAt()->format('Y-m-d H:i:s'),
+                    'updated_at' => $note->getUpdatedAt()?->format('Y-m-d H:i:s'),
+                ];
+            })->toArray()),
         ], Response::HTTP_OK);
     }
 
@@ -77,6 +83,12 @@ class NotesController extends AbstractController
             }
 
             return new JsonResponse(['errors' => $messages], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        if ($this->entityManager->getRepository(Note::class)->findOneBy(['title' => $dto->title])) {
+            return new JsonResponse([
+                'error' => 'Note with this title already exists',
+            ], Response::HTTP_CONFLICT);
         }
 
         $note = new Note();
