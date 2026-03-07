@@ -21,6 +21,8 @@ export default function Settings()
   const [show_setup_modal, set_show_setup_modal] = useState(false)
   const [show_disable_modal, set_show_disable_modal] = useState(false)
   const [setup_step, set_setup_step] = useState(1)
+  const [recovery_codes, set_recovery_codes] = useState([])
+  const [show_recovery_codes_modal, set_show_recovery_codes_modal] = useState(false)
 
   // Password change state
   const [current_password, set_current_password] = useState('')
@@ -92,6 +94,8 @@ export default function Settings()
         throw new Error(error_data.error || 'Failed to enable 2FA')
       }
 
+      const data = await response.json()
+
       set_success('2FA enabled successfully! Your account is now more secure.')
       set_two_factor_enabled(true)
       set_show_setup_modal(false)
@@ -99,6 +103,13 @@ export default function Settings()
       set_secret('')
       set_verification_code('')
       set_setup_step(1)
+
+      // Show recovery codes
+      if (data.recovery_codes && data.recovery_codes.length > 0)
+      {
+        set_recovery_codes(data.recovery_codes)
+        set_show_recovery_codes_modal(true)
+      }
     }
     catch (err)
     {
@@ -160,6 +171,34 @@ export default function Settings()
     set_show_disable_modal(false)
     set_disable_code('')
     set_error('')
+  }
+
+  const close_recovery_codes_modal = () =>
+  {
+    set_show_recovery_codes_modal(false)
+    set_recovery_codes([])
+  }
+
+  const download_recovery_codes = () =>
+  {
+    const text = recovery_codes.join('\n')
+    const blob = new Blob([text], { type: 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'pryvora-recovery-codes.txt'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }
+
+  const copy_recovery_codes = () =>
+  {
+    const text = recovery_codes.join('\n')
+    navigator.clipboard.writeText(text)
+    set_success('Recovery codes copied to clipboard!')
+    setTimeout(() => set_success(''), 3000)
   }
 
   const handle_change_password = async (e) =>
@@ -533,6 +572,63 @@ export default function Settings()
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Recovery Codes Modal */}
+      <Dialog open={show_recovery_codes_modal} onOpenChange={close_recovery_codes_modal}>
+        <DialogContent className="sm:max-w-[500px] bg-[#0f0f0f] border-[#1a1a1a]">
+          <DialogHeader>
+            <DialogTitle className="text-[#e5e5e5]">Save Your Recovery Codes</DialogTitle>
+            <DialogDescription className="text-[#888888]">
+              Store these recovery codes in a safe place. Each code can only be used once.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="p-4 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a]">
+              <div className="grid grid-cols-2 gap-2 font-mono text-sm text-[#e5e5e5]">
+                {recovery_codes.map((code, index) => (
+                  <div key={index} className="p-2 bg-[#0a0a0a] rounded text-center">
+                    {code}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+              <p className="text-sm text-yellow-400">
+                ⚠️ These codes will only be shown once. Make sure to save them now!
+              </p>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                onClick={copy_recovery_codes}
+                variant="outline"
+                className="flex-1 border-[#2a2a2a] text-[#e5e5e5] hover:bg-[#1a1a1a]"
+              >
+                Copy Codes
+              </Button>
+              <Button
+                type="button"
+                onClick={download_recovery_codes}
+                className="flex-1 bg-[#e5e5e5] text-[#0a0a0a] hover:bg-[#d4d4d4]"
+              >
+                Download Codes
+              </Button>
+            </div>
+
+            <Button
+              type="button"
+              onClick={close_recovery_codes_modal}
+              variant="ghost"
+              className="w-full text-[#888888] hover:text-[#e5e5e5]"
+            >
+              I've Saved My Codes
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </AppLayout>

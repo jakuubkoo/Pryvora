@@ -53,6 +53,12 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $twoFactorConfirmedAt = null;
 
+    #[ORM\Column(type: 'text', nullable: true)]
+    private ?string $recoveryCodes = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $recoveryCodesGeneratedAt = null;
+
     public function getId(): ?int
     {
         return $this->id;
@@ -220,6 +226,30 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
     public function setLastName(string $lastName): static
     {
         $this->lastName = $lastName;
+
+        return $this;
+    }
+
+    public function getRecoveryCodes(): ?string
+    {
+        return $this->recoveryCodes;
+    }
+
+    public function setRecoveryCodes(?string $recoveryCodes): static
+    {
+        $this->recoveryCodes = $recoveryCodes;
+
+        return $this;
+    }
+
+    public function getRecoveryCodesGeneratedAt(): ?\DateTimeImmutable
+    {
+        return $this->recoveryCodesGeneratedAt;
+    }
+
+    public function setRecoveryCodesGeneratedAt(?\DateTimeImmutable $recoveryCodesGeneratedAt): static
+    {
+        $this->recoveryCodesGeneratedAt = $recoveryCodesGeneratedAt;
 
         return $this;
     }

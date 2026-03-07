@@ -15,6 +15,7 @@ export default function Login()
   const [error, set_error] = useState('')
   const [loading, set_loading] = useState(false)
   const [requires_2fa, set_requires_2fa] = useState(false)
+  const [use_recovery_code, set_use_recovery_code] = useState(false)
   const { login, verify_2fa } = useAuth()
   const navigate = useNavigate()
 
@@ -54,7 +55,7 @@ export default function Login()
 
     try
     {
-      await verify_2fa(otp_code)
+      await verify_2fa(otp_code, use_recovery_code)
       navigate('/dashboard')
     }
     catch (err)
@@ -75,21 +76,34 @@ export default function Login()
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl font-semibold tracking-tight">Two-Factor Authentication</CardTitle>
             <CardDescription className="text-[#888888]">
-              Enter the 6-digit code from your authenticator app
+              {use_recovery_code
+                ? 'Enter one of your recovery codes'
+                : 'Enter the 6-digit code from your authenticator app'}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handle_2fa_submit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="otp" className="text-sm text-[#e5e5e5]">Verification Code</Label>
+                <Label htmlFor="otp" className="text-sm text-[#e5e5e5]">
+                  {use_recovery_code ? 'Recovery Code' : 'Verification Code'}
+                </Label>
                 <Input
                   id="otp"
                   type="text"
-                  placeholder="000000"
+                  placeholder={use_recovery_code ? 'XXXXXXXX' : '000000'}
                   value={otp_code}
-                  onChange={(e) => set_otp_code(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  onChange={(e) => {
+                    if (use_recovery_code)
+                    {
+                      set_otp_code(e.target.value.toUpperCase().replace(/[^A-F0-9]/g, '').slice(0, 8))
+                    }
+                    else
+                    {
+                      set_otp_code(e.target.value.replace(/\D/g, '').slice(0, 6))
+                    }
+                  }}
                   required
-                  maxLength={6}
+                  maxLength={use_recovery_code ? 8 : 6}
                   className="bg-[#1a1a1a] border-[#2a2a2a] text-[#e5e5e5] placeholder:text-[#666666] text-center text-2xl tracking-widest"
                 />
               </div>
@@ -98,7 +112,7 @@ export default function Login()
               )}
               <Button
                 type="submit"
-                disabled={loading || otp_code.length !== 6}
+                disabled={loading || (use_recovery_code ? otp_code.length !== 8 : otp_code.length !== 6)}
                 className="w-full bg-[#e5e5e5] text-[#0a0a0a] hover:bg-[#d4d4d4]"
               >
                 {loading ? 'Verifying...' : 'Verify'}
@@ -106,7 +120,23 @@ export default function Login()
               <Button
                 type="button"
                 variant="ghost"
-                onClick={() => set_requires_2fa(false)}
+                onClick={() => {
+                  set_use_recovery_code(!use_recovery_code)
+                  set_otp_code('')
+                  set_error('')
+                }}
+                className="w-full text-[#888888] hover:text-[#e5e5e5]"
+              >
+                {use_recovery_code ? 'Use authenticator code' : 'Use recovery code'}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  set_requires_2fa(false)
+                  set_use_recovery_code(false)
+                  set_otp_code('')
+                }}
                 className="w-full text-[#888888] hover:text-[#e5e5e5]"
               >
                 Back to login
