@@ -1,10 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Service;
 
 class EncryptionService
 {
-
     private string $key;
 
     public function __construct(string $key)
@@ -16,11 +17,11 @@ class EncryptionService
     {
         $iv = random_bytes(12);
 
-        $ciphertext = openssl_encrypt(
+        $ciphertext = (string) openssl_encrypt(
             $plaintext,
             'AES-256-GCM',
             $this->key,
-            OPENSSL_RAW_DATA,
+            \OPENSSL_RAW_DATA,
             $iv,
             $tag
         );
@@ -32,7 +33,7 @@ class EncryptionService
             'tag' => base64_encode($tag),
         ];
 
-        return base64_encode(json_encode($payload));
+        return base64_encode(json_encode($payload) ?: '');
     }
 
     public function decrypt(string $ciphertext): string
@@ -42,14 +43,13 @@ class EncryptionService
         $ciphertext = base64_decode($payload['ciphertext']);
         $tag = base64_decode($payload['tag']);
 
-        return openssl_decrypt(
+        return (string) openssl_decrypt(
             $ciphertext,
             'AES-256-GCM',
             $this->key,
-            OPENSSL_RAW_DATA,
+            \OPENSSL_RAW_DATA,
             $iv,
             $tag
         );
     }
-
 }

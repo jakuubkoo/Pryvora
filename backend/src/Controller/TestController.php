@@ -12,7 +12,6 @@ use Symfony\Component\Routing\Attribute\Route;
 #[Route('/api', methods: ['GET'])]
 class TestController extends AbstractController
 {
-
     private EncryptionService $encryptionService;
 
     public function __construct(EncryptionService $encryptionService)
@@ -26,7 +25,6 @@ class TestController extends AbstractController
         $message = 'Welcome to your new controller!';
         $encrypted = $this->encryptionService->encrypt($message);
         $decrypted = $this->encryptionService->decrypt($encrypted);
-
 
         return $this->json([
             'message' => $message,
