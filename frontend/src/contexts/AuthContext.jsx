@@ -2,7 +2,24 @@ import { createContext, useContext, useState, useEffect } from 'react'
 
 const AuthContext = createContext(null)
 
-let access_token = null
+// Try to restore access token from sessionStorage on module load
+let access_token = sessionStorage.getItem('access_token') || null
+let refresh_promise = null
+let auth_check_promise = null
+
+// Helper to store token in both memory and sessionStorage
+const set_access_token = (token) =>
+{
+  access_token = token
+  if (token)
+  {
+    sessionStorage.setItem('access_token', token)
+  }
+  else
+  {
+    sessionStorage.removeItem('access_token')
+  }
+}
 
 export function AuthProvider({ children })
 {
@@ -11,7 +28,31 @@ export function AuthProvider({ children })
 
   useEffect(() =>
   {
-    check_auth()
+    let is_mounted = true
+
+    const init_auth = async () =>
+    {
+      if (is_mounted)
+      {
+        // If auth check is already in progress, wait for it
+        if (auth_check_promise)
+        {
+          await auth_check_promise
+          return
+        }
+
+        auth_check_promise = check_auth()
+        await auth_check_promise
+        auth_check_promise = null
+      }
+    }
+
+    init_auth()
+
+    return () =>
+    {
+      is_mounted = false
+    }
   }, [])
 
   const api_request = async (url, options = {}) =>
@@ -32,17 +73,57 @@ export function AuthProvider({ children })
       credentials: 'include',
     })
 
-    if (response.status === 401 && access_token)
+    if (response.status === 401)
     {
-      const refresh_response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/refresh`, {
+      // If a refresh is already in progress, wait for it
+      if (refresh_promise)
+      {
+        try
+        {
+          await refresh_promise
+          // Retry the original request with the new token
+          headers['Authorization'] = `Bearer ${access_token}`
+          response = await fetch(url, {
+            ...options,
+            headers,
+            credentials: 'include',
+          })
+          return response
+        }
+        catch (error)
+        {
+          throw error
+        }
+      }
+
+      // Start a new refresh
+      refresh_promise = fetch(`${import.meta.env.VITE_API_URL}/api/auth/refresh`, {
         method: 'POST',
         credentials: 'include',
       })
+        .then(async (refresh_response) =>
+        {
+          if (refresh_response.ok)
+          {
+            const refresh_data = await refresh_response.json()
+            set_access_token(refresh_data.token)
+            return true
+          }
+          else
+          {
+            set_access_token(null)
+            set_user(null)
+            throw new Error('Session expired')
+          }
+        })
+        .finally(() =>
+        {
+          refresh_promise = null
+        })
 
-      if (refresh_response.ok)
+      try
       {
-        const refresh_data = await refresh_response.json()
-        access_token = refresh_data.token
+        await refresh_promise
 
         headers['Authorization'] = `Bearer ${access_token}`
         response = await fetch(url, {
@@ -51,11 +132,9 @@ export function AuthProvider({ children })
           credentials: 'include',
         })
       }
-      else
+      catch (error)
       {
-        access_token = null
-        set_user(null)
-        throw new Error('Session expired')
+        throw error
       }
     }
 
@@ -76,14 +155,14 @@ export function AuthProvider({ children })
       else
       {
         set_user(null)
-        access_token = null
+        set_access_token(null)
       }
     }
     catch (error)
     {
       console.error('Auth check failed:', error)
       set_user(null)
-      access_token = null
+      set_access_token(null)
     }
     finally
     {
@@ -137,7 +216,7 @@ export function AuthProvider({ children })
       return { requires_2fa: true }
     }
 
-    access_token = data.token
+    set_access_token(data.token)
 
     const user_response = await api_request(`${import.meta.env.VITE_API_URL}/api/user/me`)
     if (user_response.ok)
@@ -168,7 +247,7 @@ export function AuthProvider({ children })
     }
 
     const data = await response.json()
-    access_token = data.token
+    set_access_token(data.token)
 
     const user_response = await api_request(`${import.meta.env.VITE_API_URL}/api/user/me`)
     if (user_response.ok)
@@ -195,7 +274,7 @@ export function AuthProvider({ children })
     }
     finally
     {
-      access_token = null
+      set_access_token(null)
       set_user(null)
     }
   }
