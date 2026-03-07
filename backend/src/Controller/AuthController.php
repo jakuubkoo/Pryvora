@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use App\DTO\RegisterUserDTO;
 use App\Entity\RefreshToken;
 use App\Entity\User;
+use App\Service\EncryptionService;
 use App\Service\TwoFactorService;
 use Doctrine\ORM\EntityManagerInterface;
 use Lexik\Bundle\JWTAuthenticationBundle\Services\JWTTokenManagerInterface;
@@ -16,15 +18,28 @@ use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\PasswordHasher\Hasher\UserPasswordHasherInterface;
 use Symfony\Component\Routing\Attribute\Route;
+use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 #[Route('/api/auth')]
 class AuthController extends AbstractController
 {
     private const REFRESH_COOKIE = 'pryvora_refresh';
 
+    private JWTTokenManagerInterface $jwtTokenManager;
+    private EntityManagerInterface $entityManager;
+    private ValidatorInterface $validator;
+    private EncryptionService $encryptionService;
+
     public function __construct(
-        private readonly JWTTokenManagerInterface $jwtTokenManager,
+        JWTTokenManagerInterface $jwtTokenManager,
+        EntityManagerInterface $entityManager,
+        ValidatorInterface $validator,
+        EncryptionService $encryptionService,
     ) {
+        $this->jwtTokenManager = $jwtTokenManager;
+        $this->entityManager = $entityManager;
+        $this->validator = $validator;
+        $this->encryptionService = $encryptionService;
     }
 
     #[Route('/register', name: 'app_register', methods: ['POST'])]
@@ -32,17 +47,31 @@ class AuthController extends AbstractController
     {
         $data = json_decode($request->getContent(), true) ?? [];
 
-        if (empty($data['email']) || empty($data['password'])) {
-            return new JsonResponse(['error' => 'Email and password are required'], Response::HTTP_BAD_REQUEST);
+        $dto = RegisterUserDTO::fromArray($data);
+
+        $errors = $this->validator->validate($dto);
+
+        if (\count($errors) > 0) {
+            $messages = [];
+            foreach ($errors as $error) {
+                $messages[$error->getPropertyPath()] = $error->getMessage();
+            }
+
+            return new JsonResponse(['errors' => $messages], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        if ($entityManager->getRepository(User::class)->findOneBy(['email' => $data['email']])) {
+        $emailHash = hash('sha256', $data['email']);
+
+        if ($entityManager->getRepository(User::class)->findOneBy(['emailHash' => $emailHash])) {
             return new JsonResponse(['error' => 'Email already exists'], Response::HTTP_CONFLICT);
         }
 
         $user = new User();
-        $user->setEmail($data['email']);
-        $user->setPassword($userPasswordHasher->hashPassword($user, $data['password']));
+        $user->setFirstName($this->encryptionService->encrypt($dto->firstName));
+        $user->setLastName($this->encryptionService->encrypt($dto->lastName));
+        $user->setEmail($this->encryptionService->encrypt($dto->email));
+        $user->setEmailHash($emailHash);
+        $user->setPassword($userPasswordHasher->hashPassword($user, $dto->password));
         $entityManager->persist($user);
         $entityManager->flush();
 
@@ -50,7 +79,7 @@ class AuthController extends AbstractController
     }
 
     #[Route('/login', name: 'app_login', methods: ['POST'])]
-    public function login(Request $request, EntityManagerInterface $entityManager, UserPasswordHasherInterface $userPasswordHasher): JsonResponse
+    public function login(Request $request, UserPasswordHasherInterface $userPasswordHasher): JsonResponse
     {
         $data = json_decode($request->getContent(), true) ?? [];
 
@@ -58,15 +87,17 @@ class AuthController extends AbstractController
             return new JsonResponse(['error' => 'Email and password are required'], Response::HTTP_BAD_REQUEST);
         }
 
+        $emailHash = hash('sha256', $data['email']);
+
         /** @var User|null $user */
-        $user = $entityManager->getRepository(User::class)->findOneBy(['email' => $data['email']]);
+        $user = $this->entityManager->getRepository(User::class)->findOneBy(['emailHash' => $emailHash]);
 
         if (!$user || !$userPasswordHasher->isPasswordValid($user, $data['password'])) {
             return new JsonResponse(['error' => 'Invalid credentials'], Response::HTTP_UNAUTHORIZED);
         }
 
         if ($user->isTwoFactorEnabled()) {
-            $request->getSession()->set('2fa_user_email', $user->getEmail());
+            $request->getSession()->set('2fa_user_email_hash', $user->getEmailHash());
 
             return new JsonResponse([
                 'requires_2fa' => true,
@@ -74,11 +105,11 @@ class AuthController extends AbstractController
             ], Response::HTTP_OK);
         }
 
-        return $this->complete_login($user, $entityManager);
+        return $this->complete_login($user);
     }
 
     #[Route('/verify-2fa', name: 'app_verify_2fa', methods: ['POST'])]
-    public function verify_2fa(Request $request, EntityManagerInterface $entityManager, TwoFactorService $twoFactorService): JsonResponse
+    public function verify_2fa(Request $request, TwoFactorService $twoFactorService): JsonResponse
     {
         $data = json_decode($request->getContent(), true) ?? [];
 
@@ -86,14 +117,14 @@ class AuthController extends AbstractController
             return new JsonResponse(['error' => 'Verification code is required'], Response::HTTP_BAD_REQUEST);
         }
 
-        $email = $request->getSession()->get('2fa_user_email');
+        $emailHash = $request->getSession()->get('2fa_user_email_hash');
 
-        if (!$email) {
+        if (!$emailHash) {
             return new JsonResponse(['error' => 'No pending 2FA verification'], Response::HTTP_BAD_REQUEST);
         }
 
         /** @var User|null $user */
-        $user = $entityManager->getRepository(User::class)->findOneBy(['email' => $email]);
+        $user = $this->entityManager->getRepository(User::class)->findOneBy(['emailHash' => $emailHash]);
 
         if (!$user) {
             return new JsonResponse(['error' => 'User not found'], Response::HTTP_UNAUTHORIZED);
@@ -103,12 +134,12 @@ class AuthController extends AbstractController
             return new JsonResponse(['error' => 'Invalid verification code'], Response::HTTP_UNAUTHORIZED);
         }
 
-        $request->getSession()->remove('2fa_user_email');
+        $request->getSession()->remove('2fa_user_email_hash');
 
-        return $this->complete_login($user, $entityManager);
+        return $this->complete_login($user);
     }
 
-    private function complete_login(User $user, EntityManagerInterface $entityManager): JsonResponse
+    private function complete_login(User $user): JsonResponse
     {
         $token = $this->jwtTokenManager->create($user);
 
@@ -118,10 +149,10 @@ class AuthController extends AbstractController
         $rt = new RefreshToken();
         $rt->setRefreshToken($refreshTokenValue);
         $rt->setValid($validUntil);
-        $rt->setUsername($user->getEmail());
+        $rt->setUsername($user->getEmailHash());
 
-        $entityManager->persist($rt);
-        $entityManager->flush();
+        $this->entityManager->persist($rt);
+        $this->entityManager->flush();
 
         $cookie = Cookie::create(self::REFRESH_COOKIE)
             ->withValue($refreshTokenValue)
@@ -143,7 +174,7 @@ class AuthController extends AbstractController
     }
 
     #[Route('/refresh', name: 'app_refresh', methods: ['POST'])]
-    public function refresh(Request $request, EntityManagerInterface $entityManager, JWTTokenManagerInterface $JWTTokenManager): JsonResponse
+    public function refresh(Request $request, JWTTokenManagerInterface $JWTTokenManager): JsonResponse
     {
         $refreshTokenValue = $request->cookies->get(self::REFRESH_COOKIE);
 
@@ -152,7 +183,7 @@ class AuthController extends AbstractController
         }
 
         /** @var RefreshToken|null $refreshToken */
-        $refreshToken = $entityManager->getRepository(RefreshToken::class)->findOneBy(['refreshToken' => $refreshTokenValue]);
+        $refreshToken = $this->entityManager->getRepository(RefreshToken::class)->findOneBy(['refreshToken' => $refreshTokenValue]);
 
         if (!$refreshToken) {
             return new JsonResponse(['error' => 'Invalid refresh token'], Response::HTTP_UNAUTHORIZED);
@@ -162,7 +193,7 @@ class AuthController extends AbstractController
             return new JsonResponse(['error' => 'Refresh token expired'], Response::HTTP_UNAUTHORIZED);
         }
 
-        $user = $entityManager->getRepository(User::class)->findOneBy(['email' => $refreshToken->getUsername()]);
+        $user = $this->entityManager->getRepository(User::class)->findOneBy(['emailHash' => $refreshToken->getUsername()]);
 
         if (!$user) {
             return new JsonResponse(['error' => 'User not found'], Response::HTTP_UNAUTHORIZED);
@@ -173,7 +204,7 @@ class AuthController extends AbstractController
 
         $refreshToken->setRefreshToken($newRefreshTokenValue);
         $refreshToken->setValid($newValidUntil);
-        $entityManager->flush();
+        $this->entityManager->flush();
 
         $cookie = Cookie::create(self::REFRESH_COOKIE)
             ->withValue($newRefreshTokenValue)
@@ -197,15 +228,15 @@ class AuthController extends AbstractController
     }
 
     #[Route('/logout', name: 'app_logout', methods: ['POST'])]
-    public function logout(Request $request, EntityManagerInterface $entityManager): JsonResponse
+    public function logout(Request $request): JsonResponse
     {
         $refreshTokenValue = $request->cookies->get(self::REFRESH_COOKIE);
 
         if ($refreshTokenValue) {
-            $refreshToken = $entityManager->getRepository(RefreshToken::class)->findOneBy(['refreshToken' => $refreshTokenValue]);
+            $refreshToken = $this->entityManager->getRepository(RefreshToken::class)->findOneBy(['refreshToken' => $refreshTokenValue]);
             if ($refreshToken) {
-                $entityManager->remove($refreshToken);
-                $entityManager->flush();
+                $this->entityManager->remove($refreshToken);
+                $this->entityManager->flush();
             }
         }
 

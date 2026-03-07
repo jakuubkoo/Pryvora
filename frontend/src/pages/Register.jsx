@@ -10,6 +10,8 @@ import { Separator } from '@/components/ui/separator'
 
 export default function Register()
 {
+  const [first_name, set_first_name] = useState('')
+  const [last_name, set_last_name] = useState('')
   const [email, set_email] = useState('')
   const [password, set_password] = useState('')
   const [password_confirmation, set_password_confirmation] = useState('')
@@ -23,7 +25,7 @@ export default function Register()
     e.preventDefault()
     set_error('')
 
-    if (!email || !password || !password_confirmation)
+    if (!first_name || !last_name || !email || !password || !password_confirmation)
     {
       set_error('All fields are required')
       return
@@ -45,7 +47,7 @@ export default function Register()
 
     try
     {
-      await register(email, password)
+      await register(first_name, last_name, email, password)
       navigate('/dashboard')
     }
     catch (err)
@@ -74,6 +76,32 @@ export default function Register()
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
+
+            <div className="space-y-2">
+              <Label htmlFor="first_name" style={{ color: '#e5e5e5' }}>First Name</Label>
+              <Input
+                id="first_name"
+                type="text"
+                placeholder="John"
+                value={first_name}
+                onChange={(e) => set_first_name(e.target.value)}
+                disabled={loading}
+                style={{ backgroundColor: '#1a1a1a', borderColor: '#2a2a2a', color: '#e5e5e5' }}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="last_name" style={{ color: '#e5e5e5' }}>Last Name</Label>
+              <Input
+                id="last_name"
+                type="text"
+                placeholder="Doe"
+                value={last_name}
+                onChange={(e) => set_last_name(e.target.value)}
+                disabled={loading}
+                style={{ backgroundColor: '#1a1a1a', borderColor: '#2a2a2a', color: '#e5e5e5' }}
+              />
+            </div>
 
             <div className="space-y-2">
               <Label htmlFor="email" style={{ color: '#e5e5e5' }}>Email</Label>
