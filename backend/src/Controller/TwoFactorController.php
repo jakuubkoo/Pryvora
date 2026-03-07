@@ -107,7 +107,7 @@ class TwoFactorController extends AbstractController
         }
 
         return new JsonResponse([
-            'enabled' => $user->isTwoFactorEnabled() ?? false,
+            'enabled' => $user->isTwoFactorEnabled(),
         ], Response::HTTP_OK);
     }
 }
