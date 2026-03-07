@@ -130,7 +130,18 @@ class AuthController extends AbstractController
             return new JsonResponse(['error' => 'User not found'], Response::HTTP_UNAUTHORIZED);
         }
 
-        if (!$twoFactorService->verify_code($user, $data['code'])) {
+        $isRecoveryCode = !empty($data['is_recovery_code']);
+        $isValid = false;
+
+        if ($isRecoveryCode) {
+            // Verify recovery code
+            $isValid = $twoFactorService->verify_recovery_code($user, $data['code']);
+        } else {
+            // Verify TOTP code
+            $isValid = $twoFactorService->verify_code($user, $data['code']);
+        }
+
+        if (!$isValid) {
             return new JsonResponse(['error' => 'Invalid verification code'], Response::HTTP_UNAUTHORIZED);
         }
 
