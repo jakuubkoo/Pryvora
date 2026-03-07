@@ -35,7 +35,7 @@ class UserController extends AbstractController
         return $this->json([
             'id' => $user->getId(),
             'email' => $this->encryptionService->decrypt($user->getEmail()),
-            'two_factor_enabled' => $user->isTwoFactorEnabled() ?? false,
+            'two_factor_enabled' => $user->isTwoFactorEnabled(),
         ]);
     }
 

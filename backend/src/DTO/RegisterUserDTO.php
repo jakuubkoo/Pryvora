@@ -1,8 +1,9 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\DTO;
 
-use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Validator\Constraints as Assert;
 use Symfony\Component\Validator\Context\ExecutionContextInterface;
 
@@ -33,9 +34,9 @@ class RegisterUserDTO
     /**
      * Creates an instance of the class from the provided array of data.
      *
-     * @param array<string, mixed> $data An associative array containing the necessary data to populate the object.
+     * @param array<string, mixed> $data an associative array containing the necessary data to populate the object
      *
-     * @return self Returns an instance of the class populated with the given data.
+     * @return self returns an instance of the class populated with the given data
      */
     public static function fromArray(array $data): self
     {
