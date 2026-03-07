@@ -91,13 +91,19 @@ export function AuthProvider({ children })
     }
   }
 
-  const register = async (email, password) =>
+  const register = async (first_name, last_name, email, password) =>
   {
     const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({
+        firstName: first_name,
+        lastName: last_name,
+        email,
+        password,
+        confirmPassword: password
+      }),
     })
 
     if (!response.ok)
@@ -143,13 +149,16 @@ export function AuthProvider({ children })
     return data
   }
 
-  const verify_2fa = async (code) =>
+  const verify_2fa = async (code, is_recovery_code = false) =>
   {
     const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/verify-2fa`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ code }),
+      body: JSON.stringify({
+        code,
+        is_recovery_code
+      }),
     })
 
     if (!response.ok)
