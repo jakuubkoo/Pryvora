@@ -316,7 +316,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
     {
         if (!$this->tags->contains($tag)) {
             $this->tags->add($tag);
-            $tag->setUserId($this);
+            $tag->setUser($this);
         }
 
         return $this;
@@ -326,8 +326,8 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
     {
         if ($this->tags->removeElement($tag)) {
             // set the owning side to null (unless already changed)
-            if ($tag->getUserId() === $this) {
-                $tag->setUserId(null);
+            if ($tag->getUser() === $this) {
+                $tag->setUser(null);
             }
         }
 
