@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react'
+import { Edit, Trash2 } from 'lucide-react'
 import AppLayout from '@/components/layout/AppLayout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useAuth } from '@/contexts/AuthContext'
 
 export default function Settings()
@@ -32,13 +35,48 @@ export default function Settings()
   const [password_error, set_password_error] = useState('')
   const [password_success, set_password_success] = useState('')
 
+  // Tags management state
+  const [tags, set_tags] = useState([])
+  const [tags_loading, set_tags_loading] = useState(false)
+  const [show_edit_tag_modal, set_show_edit_tag_modal] = useState(false)
+  const [show_delete_tag_modal, set_show_delete_tag_modal] = useState(false)
+  const [current_tag, set_current_tag] = useState(null)
+  const [edit_tag_name, set_edit_tag_name] = useState('')
+  const [edit_tag_color, set_edit_tag_color] = useState('#3b82f6')
+  const [tag_error, set_tag_error] = useState('')
+  const [tag_success, set_tag_success] = useState('')
+
   useEffect(() =>
   {
     if (user)
     {
       set_two_factor_enabled(user.two_factor_enabled)
     }
+    fetch_tags()
   }, [user])
+
+  const fetch_tags = async () =>
+  {
+    set_tags_loading(true)
+    try
+    {
+      const response = await api_request(`${import.meta.env.VITE_API_URL}/api/tag/`)
+
+      if (response.ok)
+      {
+        const data = await response.json()
+        set_tags(data)
+      }
+    }
+    catch (err)
+    {
+      console.error('Failed to fetch tags:', err)
+    }
+    finally
+    {
+      set_tags_loading(false)
+    }
+  }
 
   const handle_setup_2fa = async () =>
   {
@@ -252,6 +290,93 @@ export default function Settings()
     }
   }
 
+  const handle_edit_tag = async (e) =>
+  {
+    e.preventDefault()
+    set_tag_error('')
+    set_tag_success('')
+    set_tags_loading(true)
+
+    try
+    {
+      const response = await api_request(`${import.meta.env.VITE_API_URL}/api/tag/${current_tag.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          name: edit_tag_name,
+          color: edit_tag_color,
+        }),
+      })
+
+      if (!response.ok)
+      {
+        const error_data = await response.json()
+        throw new Error(error_data.error || 'Failed to update tag')
+      }
+
+      set_tag_success('Tag updated successfully!')
+      set_show_edit_tag_modal(false)
+      set_current_tag(null)
+      await fetch_tags()
+      setTimeout(() => set_tag_success(''), 3000)
+    }
+    catch (err)
+    {
+      set_tag_error(err.message)
+    }
+    finally
+    {
+      set_tags_loading(false)
+    }
+  }
+
+  const handle_delete_tag = async () =>
+  {
+    set_tag_error('')
+    set_tag_success('')
+    set_tags_loading(true)
+
+    try
+    {
+      const response = await api_request(`${import.meta.env.VITE_API_URL}/api/tag/${current_tag.id}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok)
+      {
+        const error_data = await response.json()
+        throw new Error(error_data.error || 'Failed to delete tag')
+      }
+
+      set_tag_success('Tag deleted successfully!')
+      set_show_delete_tag_modal(false)
+      set_current_tag(null)
+      await fetch_tags()
+      setTimeout(() => set_tag_success(''), 3000)
+    }
+    catch (err)
+    {
+      set_tag_error(err.message)
+    }
+    finally
+    {
+      set_tags_loading(false)
+    }
+  }
+
+  const open_edit_tag_modal = (tag) =>
+  {
+    set_current_tag(tag)
+    set_edit_tag_name(tag.name)
+    set_edit_tag_color(tag.color)
+    set_show_edit_tag_modal(true)
+  }
+
+  const open_delete_tag_modal = (tag) =>
+  {
+    set_current_tag(tag)
+    set_show_delete_tag_modal(true)
+  }
+
   return (
     <AppLayout title="Settings">
       <div className="p-6 space-y-6">
@@ -383,6 +508,74 @@ export default function Settings()
                 {password_loading ? 'Changing Password...' : 'Change Password'}
               </Button>
             </form>
+          </CardContent>
+        </Card>
+
+        {/* Tags Management */}
+        <Card className="border-[#1a1a1a] bg-[#0f0f0f]">
+          <CardHeader>
+            <CardTitle className="text-[#e5e5e5]">Manage Tags</CardTitle>
+            <CardDescription className="text-[#888888]">
+              View, edit, and delete your tags
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {tag_success && (
+              <Alert className="mb-4 border-green-500/50 bg-green-500/10">
+                <AlertDescription className="text-green-400">
+                  {tag_success}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {tag_error && (
+              <Alert className="mb-4 border-red-500/50 bg-red-500/10">
+                <AlertDescription className="text-red-400">
+                  {tag_error}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {tags_loading ? (
+              <p className="text-sm text-[#888888]">Loading tags...</p>
+            ) : tags.length === 0 ? (
+              <p className="text-sm text-[#888888]">No tags created yet. Create tags when adding notes.</p>
+            ) : (
+              <div className="space-y-2">
+                {tags.map(tag => (
+                  <div
+                    key={tag.id}
+                    className="flex items-center justify-between p-3 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a]"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="size-6 rounded-full border border-[#2a2a2a]"
+                        style={{ backgroundColor: tag.color }}
+                      />
+                      <span className="text-sm text-[#e5e5e5]">{tag.name}</span>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() => open_edit_tag_modal(tag)}
+                        variant="ghost"
+                        size="sm"
+                        className="text-[#888888] hover:text-[#e5e5e5]"
+                      >
+                        <Edit className="size-4"/>
+                      </Button>
+                      <Button
+                        onClick={() => open_delete_tag_modal(tag)}
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-400 hover:text-red-300"
+                      >
+                        <Trash2 className="size-4"/>
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -627,6 +820,124 @@ export default function Settings()
               className="w-full text-[#888888] hover:text-[#e5e5e5]"
             >
               I've Saved My Codes
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Tag Modal */}
+      <Dialog open={show_edit_tag_modal} onOpenChange={set_show_edit_tag_modal}>
+        <DialogContent className="sm:max-w-[425px] bg-[#0f0f0f] border-[#1a1a1a]">
+          <DialogHeader>
+            <DialogTitle className="text-[#e5e5e5]">Edit Tag</DialogTitle>
+            <DialogDescription className="text-[#888888]">
+              Update the tag name and color
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handle_edit_tag} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="edit_tag_name" className="text-sm text-[#e5e5e5]">
+                Tag Name
+              </Label>
+              <Input
+                id="edit_tag_name"
+                value={edit_tag_name}
+                onChange={(e) => set_edit_tag_name(e.target.value)}
+                required
+                className="bg-[#1a1a1a] border-[#2a2a2a] text-[#e5e5e5] placeholder:text-[#666666]"
+                placeholder="Enter tag name"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="edit_tag_color" className="text-sm text-[#e5e5e5]">
+                Tag Color
+              </Label>
+              <div className="flex gap-2 items-center">
+                <input
+                  id="edit_tag_color"
+                  type="color"
+                  value={edit_tag_color}
+                  onChange={(e) => set_edit_tag_color(e.target.value)}
+                  className="h-10 w-20 rounded border border-[#2a2a2a] bg-[#1a1a1a] cursor-pointer"
+                />
+                <div className="flex items-center gap-2 flex-1">
+                  <div
+                    className="size-6 rounded-full border border-[#2a2a2a]"
+                    style={{ backgroundColor: edit_tag_color }}
+                  />
+                  <span className="text-sm text-[#888888]">{edit_tag_color}</span>
+                </div>
+              </div>
+            </div>
+
+            {tag_error && (
+              <p className="text-sm text-red-400">{tag_error}</p>
+            )}
+
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                onClick={() => set_show_edit_tag_modal(false)}
+                variant="ghost"
+                className="flex-1 text-[#888888] hover:text-[#e5e5e5]"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={tags_loading || !edit_tag_name}
+                className="flex-1 bg-[#e5e5e5] text-[#0a0a0a] hover:bg-[#d4d4d4]"
+              >
+                {tags_loading ? 'Updating...' : 'Update Tag'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Tag Modal */}
+      <Dialog open={show_delete_tag_modal} onOpenChange={set_show_delete_tag_modal}>
+        <DialogContent className="sm:max-w-[425px] bg-[#0f0f0f] border-[#1a1a1a]">
+          <DialogHeader>
+            <DialogTitle className="text-[#e5e5e5]">Delete Tag</DialogTitle>
+            <DialogDescription className="text-[#888888]">
+              Are you sure you want to delete this tag? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+
+          {current_tag && (
+            <div className="py-4">
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a]">
+                <div
+                  className="size-6 rounded-full border border-[#2a2a2a]"
+                  style={{ backgroundColor: current_tag.color }}
+                />
+                <span className="text-sm text-[#e5e5e5]">{current_tag.name}</span>
+              </div>
+            </div>
+          )}
+
+          {tag_error && (
+            <p className="text-sm text-red-400 mb-4">{tag_error}</p>
+          )}
+
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              onClick={() => set_show_delete_tag_modal(false)}
+              variant="ghost"
+              className="flex-1 text-[#888888] hover:text-[#e5e5e5]"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handle_delete_tag}
+              disabled={tags_loading}
+              className="flex-1 bg-red-500 text-white hover:bg-red-600"
+            >
+              {tags_loading ? 'Deleting...' : 'Delete Tag'}
             </Button>
           </div>
         </DialogContent>

@@ -7,6 +7,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import TagSelector from '@/components/TagSelector'
 import { useAuth } from '@/contexts/AuthContext'
 import { use_reduced_motion } from '@/hooks/use-reduced-motion.js'
 
@@ -61,11 +63,13 @@ export default function Notes()
 
   const [new_note_title, set_new_note_title] = useState('')
   const [new_note_content, set_new_note_content] = useState('')
+  const [new_note_tags, set_new_note_tags] = useState([])
   const [creating, set_creating] = useState(false)
 
   const [edit_note, set_edit_note] = useState(null)
   const [edit_note_title, set_edit_note_title] = useState('')
   const [edit_note_content, set_edit_note_content] = useState('')
+  const [edit_note_tags, set_edit_note_tags] = useState([])
   const [updating, set_updating] = useState(false)
 
   const [delete_note, set_delete_note] = useState(null)
@@ -121,6 +125,7 @@ export default function Notes()
         body: JSON.stringify({
           title: new_note_title,
           content: new_note_content,
+          tag_ids: new_note_tags.map(t => t.id),
         }),
       })
 
@@ -133,6 +138,7 @@ export default function Notes()
       set_success('Note created successfully!')
       set_new_note_title('')
       set_new_note_content('')
+      set_new_note_tags([])
       set_show_create_modal(false)
       await fetch_notes()
 
@@ -162,6 +168,7 @@ export default function Notes()
         body: JSON.stringify({
           title: edit_note_title,
           content: edit_note_content,
+          tag_ids: edit_note_tags.map(t => t.id),
         }),
       })
 
@@ -229,6 +236,7 @@ export default function Notes()
     set_edit_note(note)
     set_edit_note_title(note.title)
     set_edit_note_content(note.content)
+    set_edit_note_tags(note.tags || [])
     set_show_edit_modal(true)
   }
 
@@ -337,6 +345,11 @@ export default function Notes()
                     required
                   />
                 </div>
+
+                <TagSelector
+                  selected_tags={new_note_tags}
+                  on_tags_change={set_new_note_tags}
+                />
 
                   <div className="flex gap-3 justify-end">
                     <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
@@ -545,9 +558,22 @@ export default function Notes()
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <p className="text-sm text-[#888888] line-clamp-4 whitespace-pre-wrap">
+                      <p className="text-sm text-[#888888] line-clamp-4 whitespace-pre-wrap mb-3">
                         {note.content}
                       </p>
+                      {note.tags && note.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {note.tags.map(tag => (
+                            <Badge
+                              key={tag.id}
+                              className="text-xs"
+                              style={{ backgroundColor: tag.color, color: '#fff' }}
+                            >
+                              {tag.name}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
                     </CardContent>
                   </motion.div>
                 </Card>
@@ -606,6 +632,11 @@ export default function Notes()
                   required
                 />
               </div>
+
+              <TagSelector
+                selected_tags={edit_note_tags}
+                on_tags_change={set_edit_note_tags}
+              />
 
                   <div className="flex gap-3 justify-end">
                       <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>

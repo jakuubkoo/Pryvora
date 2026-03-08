@@ -7,6 +7,7 @@ namespace App\Controller;
 use App\DTO\CreateNoteDTO;
 use App\DTO\UpdateNoteDTO;
 use App\Entity\Note;
+use App\Entity\Tag;
 use App\Entity\User;
 use App\Service\EncryptionService;
 use Doctrine\ORM\EntityManagerInterface;
@@ -53,6 +54,13 @@ class NotesController extends AbstractController
                     'id' => $note->getId(),
                     'title' => $note->getTitle(),
                     'content' => $this->encryptionService->decrypt($note->getContent() ?? ''),
+                    'tags' => array_values($note->getTags()->map(function (Tag $tag) {
+                        return [
+                            'id' => $tag->getId(),
+                            'name' => $tag->getName(),
+                            'color' => $tag->getColor(),
+                        ];
+                    })->toArray()),
                     'created_at' => $note->getCreatedAt()->format('Y-m-d H:i:s'),
                     'updated_at' => $note->getUpdatedAt()?->format('Y-m-d H:i:s'),
                 ];
@@ -83,6 +91,13 @@ class NotesController extends AbstractController
             'id' => $note->getId(),
             'title' => $note->getTitle(),
             'content' => $this->encryptionService->decrypt($note->getContent() ?? ''),
+            'tags' => array_values($note->getTags()->map(function (Tag $tag) {
+                return [
+                    'id' => $tag->getId(),
+                    'name' => $tag->getName(),
+                    'color' => $tag->getColor(),
+                ];
+            })->toArray()),
             'created_at' => $note->getCreatedAt()->format('Y-m-d H:i:s'),
             'updated_at' => $note->getUpdatedAt()?->format('Y-m-d H:i:s'),
         ], Response::HTTP_OK);
@@ -125,11 +140,21 @@ class NotesController extends AbstractController
         $note->setContent($this->encryptionService->encrypt($dto->content));
         $note->setUser($user);
 
+        if (isset($data['tag_ids']) && is_array($data['tag_ids'])) {
+            foreach ($data['tag_ids'] as $tag_id) {
+                $tag = $this->entityManager->getRepository(Tag::class)->find($tag_id);
+                if ($tag && $tag->getUser() === $user) {
+                    $tag->addNote($note);
+                }
+            }
+        }
+
         $this->entityManager->persist($note);
         $this->entityManager->flush();
 
         return new JsonResponse([
             'message' => 'Note created',
+            'id' => $note->getId(),
         ], Response::HTTP_CREATED);
     }
 
@@ -172,6 +197,19 @@ class NotesController extends AbstractController
         }
         if ($dto->content) {
             $note->setContent($this->encryptionService->encrypt($dto->content));
+        }
+
+        if (isset($data['tag_ids']) && is_array($data['tag_ids'])) {
+            foreach ($note->getTags() as $tag) {
+                $tag->removeNote($note);
+            }
+
+            foreach ($data['tag_ids'] as $tag_id) {
+                $tag = $this->entityManager->getRepository(Tag::class)->find($tag_id);
+                if ($tag && $tag->getUser() === $user) {
+                    $tag->addNote($note);
+                }
+            }
         }
 
         $this->entityManager->persist($note);
