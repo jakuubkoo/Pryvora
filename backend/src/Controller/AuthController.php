@@ -168,7 +168,7 @@ class AuthController extends AbstractController
         $cookie = Cookie::create(self::REFRESH_COOKIE)
             ->withValue($refreshTokenValue)
             ->withExpires($validUntil)
-            ->withPath('/api/auth')
+            ->withPath('/')
             ->withHttpOnly(true)
             ->withSecure((bool) ($_ENV['COOKIE_SECURE'] ?? false))
             ->withSameSite('lax');
@@ -210,20 +210,20 @@ class AuthController extends AbstractController
             return new JsonResponse(['error' => 'User not found'], Response::HTTP_UNAUTHORIZED);
         }
 
-        $newRefreshTokenValue = bin2hex(random_bytes(64));
-        $newValidUntil = new \DateTime('+30 days');
+        // Only rotate refresh token if it's older than 1 day
+        $shouldRotate = $refreshToken->getValid()->getTimestamp() - time() < (29 * 24 * 60 * 60);
 
-        $refreshToken->setRefreshToken($newRefreshTokenValue);
-        $refreshToken->setValid($newValidUntil);
-        $this->entityManager->flush();
+        $newRefreshTokenValue = $refreshTokenValue;
+        $newValidUntil = $refreshToken->getValid();
 
-        $cookie = Cookie::create(self::REFRESH_COOKIE)
-            ->withValue($newRefreshTokenValue)
-            ->withExpires($newValidUntil)
-            ->withPath('/api/auth')
-            ->withHttpOnly(true)
-            ->withSecure((bool) ($_ENV['COOKIE_SECURE'] ?? false))
-            ->withSameSite('lax');
+        if ($shouldRotate) {
+            $newRefreshTokenValue = bin2hex(random_bytes(64));
+            $newValidUntil = new \DateTime('+30 days');
+
+            $refreshToken->setRefreshToken($newRefreshTokenValue);
+            $refreshToken->setValid($newValidUntil);
+            $this->entityManager->flush();
+        }
 
         $token = $JWTTokenManager->create($user);
 
@@ -233,7 +233,18 @@ class AuthController extends AbstractController
             'expires_at' => $newValidUntil,
         ], Response::HTTP_OK);
 
-        $response->headers->setCookie($cookie);
+        // Only set cookie if we rotated the token
+        if ($shouldRotate) {
+            $cookie = Cookie::create(self::REFRESH_COOKIE)
+                ->withValue($newRefreshTokenValue)
+                ->withExpires($newValidUntil)
+                ->withPath('/')
+                ->withHttpOnly(true)
+                ->withSecure((bool) ($_ENV['COOKIE_SECURE'] ?? false))
+                ->withSameSite('lax');
+
+            $response->headers->setCookie($cookie);
+        }
 
         return $response;
     }
@@ -251,7 +262,17 @@ class AuthController extends AbstractController
             }
         }
 
+        // Clear cookie with path '/' (new path)
         $cookie = Cookie::create(self::REFRESH_COOKIE)
+            ->withValue('')
+            ->withExpires(new \DateTime('-1 day'))
+            ->withPath('/')
+            ->withHttpOnly(true)
+            ->withSecure((bool) ($_ENV['COOKIE_SECURE'] ?? false))
+            ->withSameSite('lax');
+
+        // Also clear cookie with old path '/api/auth' for backwards compatibility
+        $oldCookie = Cookie::create(self::REFRESH_COOKIE)
             ->withValue('')
             ->withExpires(new \DateTime('-1 day'))
             ->withPath('/api/auth')
@@ -261,6 +282,7 @@ class AuthController extends AbstractController
 
         $response = new JsonResponse(['message' => 'Logout successful'], Response::HTTP_OK);
         $response->headers->setCookie($cookie);
+        $response->headers->setCookie($oldCookie);
 
         return $response;
     }
