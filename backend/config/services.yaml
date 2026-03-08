@@ -25,3 +25,10 @@ services:
     App\Service\EncryptionService:
         arguments:
             $key: '%env(resolve:PRYVORA_ENCRYPTION_KEY)%'
+
+when@test:
+    services:
+        _defaults:
+            public: true
+            autowire: true
+            autoconfigure: true

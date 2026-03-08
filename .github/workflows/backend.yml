@@ -17,6 +17,21 @@ jobs:
       run:
         working-directory: backend
 
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: pryvora_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
     steps:
       - uses: actions/checkout@v4
 
@@ -40,12 +55,27 @@ jobs:
         run: |
           echo "APP_ENV=dev" > .env
           echo "APP_SECRET=test_secret_for_ci" >> .env
-          echo "DATABASE_URL=postgresql://test:test@localhost:5432/test?serverVersion=16&charset=utf8" >> .env
+          echo "DATABASE_URL=postgresql://test:test@localhost:5432/pryvora?serverVersion=16&charset=utf8" >> .env
           echo "DEFAULT_URI=http://localhost" >> .env
           echo "FRONTEND_URL=http://localhost:5173" >> .env
           echo "JWT_SECRET_KEY=%kernel.project_dir%/config/jwt/private.pem" >> .env
           echo "JWT_PUBLIC_KEY=%kernel.project_dir%/config/jwt/public.pem" >> .env
           echo "JWT_PASSPHRASE=test_passphrase" >> .env
+          echo "PRYVORA_ENCRYPTION_KEY=test_encryption_key_32_chars_long!!" >> .env
+
+      - name: Create .env.test file for CI
+        run: |
+          echo "KERNEL_CLASS='App\Kernel'" > .env.test
+          echo "APP_ENV=test" >> .env.test
+          echo "APP_SECRET=test_secret_for_ci" >> .env.test
+          echo "DATABASE_URL=postgresql://test:test@localhost:5432/pryvora_test?serverVersion=16&charset=utf8" >> .env.test
+          echo "DEFAULT_URI=http://localhost" >> .env.test
+          echo "FRONTEND_URL=http://localhost:5173" >> .env.test
+          echo "JWT_SECRET_KEY=%kernel.project_dir%/config/jwt/private.pem" >> .env.test
+          echo "JWT_PUBLIC_KEY=%kernel.project_dir%/config/jwt/public.pem" >> .env.test
+          echo "JWT_PASSPHRASE=test_passphrase" >> .env.test
+          echo "PRYVORA_ENCRYPTION_KEY=test_encryption_key_32_chars_long!!" >> .env.test
+          echo "COOKIE_SECURE=0" >> .env.test
 
       - name: Generate JWT keys
         run: |
@@ -62,3 +92,6 @@ jobs:
 
       - name: PHPStan
         run: php vendor/bin/phpstan analyse -c phpstan.dist.neon --no-progress
+
+      - name: Run PHPUnit Tests
+        run: php vendor/bin/phpunit --testdox

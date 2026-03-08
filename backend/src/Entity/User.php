@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Entity;
 
 use App\Repository\UserRepository;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use Scheb\TwoFactorBundle\Model\Google\TwoFactorInterface;
 use Symfony\Component\Security\Core\User\PasswordAuthenticatedUserInterface;
@@ -26,7 +28,7 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
     #[ORM\Column(length: 255)]
     private ?string $lastName = null;
 
-    #[ORM\Column(length: 180)]
+    #[ORM\Column(length: 500)]
     private string $email = '';
 
     #[ORM\Column(length: 64)]
@@ -58,6 +60,24 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
 
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $recoveryCodesGeneratedAt = null;
+
+    /**
+     * @var Collection<int, Note>
+     */
+    #[ORM\OneToMany(targetEntity: Note::class, mappedBy: 'userId', orphanRemoval: true)]
+    private Collection $notes;
+
+    /**
+     * @var Collection<int, Tag>
+     */
+    #[ORM\OneToMany(targetEntity: Tag::class, mappedBy: 'userId', orphanRemoval: true)]
+    private Collection $tags;
+
+    public function __construct()
+    {
+        $this->notes = new ArrayCollection();
+        $this->tags = new ArrayCollection();
+    }
 
     public function getId(): ?int
     {
@@ -250,6 +270,66 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
     public function setRecoveryCodesGeneratedAt(?\DateTimeImmutable $recoveryCodesGeneratedAt): static
     {
         $this->recoveryCodesGeneratedAt = $recoveryCodesGeneratedAt;
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Note>
+     */
+    public function getNotes(): Collection
+    {
+        return $this->notes;
+    }
+
+    public function addNote(Note $note): static
+    {
+        if (!$this->notes->contains($note)) {
+            $this->notes->add($note);
+            $note->setUser($this);
+        }
+
+        return $this;
+    }
+
+    public function removeNote(Note $note): static
+    {
+        if ($this->notes->removeElement($note)) {
+            // set the owning side to null (unless already changed)
+            if ($note->getUser() === $this) {
+                $note->setUser(null);
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, Tag>
+     */
+    public function getTags(): Collection
+    {
+        return $this->tags;
+    }
+
+    public function addTag(Tag $tag): static
+    {
+        if (!$this->tags->contains($tag)) {
+            $this->tags->add($tag);
+            $tag->setUser($this);
+        }
+
+        return $this;
+    }
+
+    public function removeTag(Tag $tag): static
+    {
+        if ($this->tags->removeElement($tag)) {
+            // set the owning side to null (unless already changed)
+            if ($tag->getUser() === $this) {
+                $tag->setUser(null);
+            }
+        }
 
         return $this;
     }
