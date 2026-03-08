@@ -6,31 +6,36 @@ namespace App\DTO;
 
 use Symfony\Component\Validator\Constraints as Assert;
 
-class NoteDTO
+class UpdateNoteDTO
 {
     public function __construct(
         #[Assert\NotBlank(message: 'Title is required')]
         #[Assert\Length(min: 3, max: 255, minMessage: 'Title must be at least 3 characters', maxMessage: 'Title cannot be longer than 255 characters')]
-        public readonly string $title,
+        public ?string $title = null,
 
         #[Assert\NotBlank(message: 'Content is required')]
         #[Assert\Length(min: 3, minMessage: 'Content must be at least 3 characters')]
-        public readonly string $content,
+        public ?string $content = null,
     ) {
     }
 
     /**
-     * Creates a new instance of the class from the given array of data.
+     * Creates an instance of the class from the given array of data.
      *
-     * @param array<string, mixed> $data an associative array containing the required data
+     * @param array<string, mixed> $data an associative array containing the properties to initialize the object with
      *
-     * @return self a new instance of the class
+     * @return self the newly created instance of the class
      */
     public static function fromArray(array $data): self
     {
-        return new self(
-            title: $data['title'],
-            content: $data['content'],
-        );
+        $dto = new self();
+        if (\array_key_exists('title', $data)) {
+            $dto->title = $data['title'];
+        }
+        if (\array_key_exists('content', $data)) {
+            $dto->content = $data['content'];
+        }
+
+        return $dto;
     }
 }
