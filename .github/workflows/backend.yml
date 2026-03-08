@@ -65,7 +65,8 @@ jobs:
 
       - name: Create .env.test file for CI
         run: |
-          echo "APP_ENV=test" > .env.test
+          echo "KERNEL_CLASS='App\Kernel'" > .env.test
+          echo "APP_ENV=test" >> .env.test
           echo "APP_SECRET=test_secret_for_ci" >> .env.test
           echo "DATABASE_URL=postgresql://test:test@localhost:5432/pryvora_test?serverVersion=16&charset=utf8" >> .env.test
           echo "DEFAULT_URI=http://localhost" >> .env.test
@@ -74,6 +75,7 @@ jobs:
           echo "JWT_PUBLIC_KEY=%kernel.project_dir%/config/jwt/public.pem" >> .env.test
           echo "JWT_PASSPHRASE=test_passphrase" >> .env.test
           echo "PRYVORA_ENCRYPTION_KEY=test_encryption_key_32_chars_long!!" >> .env.test
+          echo "COOKIE_SECURE=0" >> .env.test
 
       - name: Generate JWT keys
         run: |
