@@ -74,7 +74,7 @@ class TagController extends AbstractController
             return new JsonResponse(['errors' => $messages], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        if ($this->entityManager->getRepository(Tag::class)->findOneBy(['name' => $dto->name, 'user' => $user])) {
+        if ($this->entityManager->getRepository(Tag::class)->findOneBy(['name' => $dto->name, 'userId' => $user])) {
             return new JsonResponse(['error' => 'Tag already exists'], Response::HTTP_CONFLICT);
         }
 

@@ -132,6 +132,9 @@ class Tag implements \JsonSerializable
         $this->updatedAt = new \DateTimeImmutable();
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public function jsonSerialize(): array
     {
         return [
