@@ -14,7 +14,7 @@ use Symfony\Component\Security\Core\User\UserInterface;
 
 #[ORM\Entity(repositoryClass: UserRepository::class)]
 #[ORM\Table(name: '`user`')]
-#[ORM\UniqueConstraint(name: 'UNIQ_IDENTIFIER_EMAIL_HASH', fields: ['emailHash'])]
+#[ORM\UniqueConstraint(name: 'UNIQ_IDENTIFIER_EMAIL', fields: ['email'])]
 class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFactorInterface
 {
     #[ORM\Id]
@@ -28,11 +28,8 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
     #[ORM\Column(length: 255)]
     private ?string $lastName = null;
 
-    #[ORM\Column(length: 500)]
+    #[ORM\Column(length: 180)]
     private string $email = '';
-
-    #[ORM\Column(length: 64)]
-    private string $emailHash = '';
 
     /**
      * @var list<string> The user roles
@@ -97,18 +94,6 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
     public function setEmail(string $email): static
     {
         $this->email = $email;
-
-        return $this;
-    }
-
-    public function getEmailHash(): string
-    {
-        return $this->emailHash;
-    }
-
-    public function setEmailHash(string $emailHash): static
-    {
-        $this->emailHash = $emailHash;
 
         return $this;
     }

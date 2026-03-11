@@ -38,12 +38,12 @@ class NotesController extends AbstractController
     #[Route('/', name: 'get', methods: ['GET'])]
     public function getNotes(): JsonResponse
     {
-        $user = $this->entityManager->getRepository(User::class)->findOneBy(['email' => $this->getUser()?->getUserIdentifier()]);
+        $user = $this->getUser();
 
-        if (!$user) {
+        if (!$user instanceof User) {
             return new JsonResponse([
-                'error' => 'User not found',
-            ], Response::HTTP_NOT_FOUND);
+                'error' => 'Unauthorized',
+            ], Response::HTTP_UNAUTHORIZED);
         }
 
         $notes = $user->getNotes();
@@ -71,12 +71,12 @@ class NotesController extends AbstractController
     #[Route('/{id}', name: 'get_one', methods: ['GET'])]
     public function getNote(int $id): JsonResponse
     {
-        $user = $this->entityManager->getRepository(User::class)->findOneBy(['email' => $this->getUser()?->getUserIdentifier()]);
+        $user = $this->getUser();
 
-        if (!$user) {
+        if (!$user instanceof User) {
             return new JsonResponse([
-                'error' => 'User not found',
-            ], Response::HTTP_NOT_FOUND);
+                'error' => 'Unauthorized',
+            ], Response::HTTP_UNAUTHORIZED);
         }
 
         $note = $this->entityManager->getRepository(Note::class)->findOneBy(['id' => $id]);
@@ -85,6 +85,12 @@ class NotesController extends AbstractController
             return new JsonResponse([
                 'error' => 'Note not found',
             ], Response::HTTP_NOT_FOUND);
+        }
+
+        if ($note->getUser()?->getId() !== $user->getId()) {
+            return new JsonResponse([
+                'error' => 'Forbidden',
+            ], Response::HTTP_FORBIDDEN);
         }
 
         return new JsonResponse([
@@ -106,12 +112,12 @@ class NotesController extends AbstractController
     #[Route('/', name: 'create', methods: ['POST'])]
     public function createNote(Request $request): JsonResponse
     {
-        $user = $this->entityManager->getRepository(User::class)->findOneBy(['email' => $this->getUser()?->getUserIdentifier()]);
+        $user = $this->getUser();
 
-        if (!$user) {
+        if (!$user instanceof User) {
             return new JsonResponse([
-                'error' => 'User not found',
-            ], Response::HTTP_NOT_FOUND);
+                'error' => 'Unauthorized',
+            ], Response::HTTP_UNAUTHORIZED);
         }
 
         $data = json_decode($request->getContent(), true) ?? [];
@@ -129,7 +135,7 @@ class NotesController extends AbstractController
             return new JsonResponse(['errors' => $messages], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        if ($this->entityManager->getRepository(Note::class)->findOneBy(['title' => $dto->title])) {
+        if ($this->entityManager->getRepository(Note::class)->findOneBy(['title' => $dto->title, 'userId' => $user])) {
             return new JsonResponse([
                 'error' => 'Note with this title already exists',
             ], Response::HTTP_CONFLICT);
@@ -143,7 +149,7 @@ class NotesController extends AbstractController
         if (isset($data['tag_ids']) && \is_array($data['tag_ids'])) {
             foreach ($data['tag_ids'] as $tag_id) {
                 $tag = $this->entityManager->getRepository(Tag::class)->find($tag_id);
-                if ($tag && $tag->getUser() === $user) {
+                if ($tag && $tag->getUser()?->getId() === $user->getId()) {
                     $tag->addNote($note);
                 }
             }
@@ -161,12 +167,12 @@ class NotesController extends AbstractController
     #[Route('/{id}', name: 'update', methods: ['PUT'])]
     public function updateNote(Request $request, int $id): JsonResponse
     {
-        $user = $this->entityManager->getRepository(User::class)->findOneBy(['email' => $this->getUser()?->getUserIdentifier()]);
+        $user = $this->getUser();
 
-        if (!$user) {
+        if (!$user instanceof User) {
             return new JsonResponse([
-                'error' => 'User not found',
-            ], Response::HTTP_NOT_FOUND);
+                'error' => 'Unauthorized',
+            ], Response::HTTP_UNAUTHORIZED);
         }
 
         $note = $this->entityManager->getRepository(Note::class)->findOneBy(['id' => $id]);
@@ -175,6 +181,12 @@ class NotesController extends AbstractController
             return new JsonResponse([
                 'error' => 'Note not found',
             ], Response::HTTP_NOT_FOUND);
+        }
+
+        if ($note->getUser()?->getId() !== $user->getId()) {
+            return new JsonResponse([
+                'error' => 'Forbidden',
+            ], Response::HTTP_FORBIDDEN);
         }
 
         $data = json_decode($request->getContent(), true) ?? [];
@@ -206,7 +218,7 @@ class NotesController extends AbstractController
 
             foreach ($data['tag_ids'] as $tag_id) {
                 $tag = $this->entityManager->getRepository(Tag::class)->find($tag_id);
-                if ($tag && $tag->getUser() === $user) {
+                if ($tag && $tag->getUser()?->getId() === $user->getId()) {
                     $tag->addNote($note);
                 }
             }
@@ -223,12 +235,12 @@ class NotesController extends AbstractController
     #[Route('/{id}', name: 'delete', methods: ['DELETE'])]
     public function deleteNote(int $id): JsonResponse
     {
-        $user = $this->entityManager->getRepository(User::class)->findOneBy(['email' => $this->getUser()?->getUserIdentifier()]);
+        $user = $this->getUser();
 
-        if (!$user) {
+        if (!$user instanceof User) {
             return new JsonResponse([
-                'error' => 'User not found',
-            ], Response::HTTP_NOT_FOUND);
+                'error' => 'Unauthorized',
+            ], Response::HTTP_UNAUTHORIZED);
         }
 
         $note = $this->entityManager->getRepository(Note::class)->findOneBy(['id' => $id]);
@@ -237,6 +249,12 @@ class NotesController extends AbstractController
             return new JsonResponse([
                 'error' => 'Note not found',
             ], Response::HTTP_NOT_FOUND);
+        }
+
+        if ($note->getUser()?->getId() !== $user->getId()) {
+            return new JsonResponse([
+                'error' => 'Forbidden',
+            ], Response::HTTP_FORBIDDEN);
         }
 
         $this->entityManager->remove($note);

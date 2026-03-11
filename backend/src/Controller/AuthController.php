@@ -60,17 +60,14 @@ class AuthController extends AbstractController
             return new JsonResponse(['errors' => $messages], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
-        $emailHash = hash('sha256', $data['email']);
-
-        if ($entityManager->getRepository(User::class)->findOneBy(['emailHash' => $emailHash])) {
+        if ($entityManager->getRepository(User::class)->findOneBy(['email' => $dto->email])) {
             return new JsonResponse(['error' => 'Email already exists'], Response::HTTP_CONFLICT);
         }
 
         $user = new User();
         $user->setFirstName($this->encryptionService->encrypt($dto->firstName));
         $user->setLastName($this->encryptionService->encrypt($dto->lastName));
-        $user->setEmail($this->encryptionService->encrypt($dto->email));
-        $user->setEmailHash($emailHash);
+        $user->setEmail($dto->email);
         $user->setPassword($userPasswordHasher->hashPassword($user, $dto->password));
         $entityManager->persist($user);
         $entityManager->flush();
@@ -87,17 +84,15 @@ class AuthController extends AbstractController
             return new JsonResponse(['error' => 'Email and password are required'], Response::HTTP_BAD_REQUEST);
         }
 
-        $emailHash = hash('sha256', $data['email']);
-
         /** @var User|null $user */
-        $user = $this->entityManager->getRepository(User::class)->findOneBy(['emailHash' => $emailHash]);
+        $user = $this->entityManager->getRepository(User::class)->findOneBy(['email' => $data['email']]);
 
         if (!$user || !$userPasswordHasher->isPasswordValid($user, $data['password'])) {
             return new JsonResponse(['error' => 'Invalid credentials'], Response::HTTP_UNAUTHORIZED);
         }
 
         if ($user->isTwoFactorEnabled()) {
-            $request->getSession()->set('2fa_user_email_hash', $user->getEmailHash());
+            $request->getSession()->set('2fa_user_email', $user->getEmail());
 
             return new JsonResponse([
                 'requires_2fa' => true,
@@ -117,14 +112,14 @@ class AuthController extends AbstractController
             return new JsonResponse(['error' => 'Verification code is required'], Response::HTTP_BAD_REQUEST);
         }
 
-        $emailHash = $request->getSession()->get('2fa_user_email_hash');
+        $email = $request->getSession()->get('2fa_user_email');
 
-        if (!$emailHash) {
+        if (!$email) {
             return new JsonResponse(['error' => 'No pending 2FA verification'], Response::HTTP_BAD_REQUEST);
         }
 
         /** @var User|null $user */
-        $user = $this->entityManager->getRepository(User::class)->findOneBy(['emailHash' => $emailHash]);
+        $user = $this->entityManager->getRepository(User::class)->findOneBy(['email' => $email]);
 
         if (!$user) {
             return new JsonResponse(['error' => 'User not found'], Response::HTTP_UNAUTHORIZED);
@@ -145,7 +140,7 @@ class AuthController extends AbstractController
             return new JsonResponse(['error' => 'Invalid verification code'], Response::HTTP_UNAUTHORIZED);
         }
 
-        $request->getSession()->remove('2fa_user_email_hash');
+        $request->getSession()->remove('2fa_user_email');
 
         return $this->complete_login($user);
     }
@@ -160,7 +155,7 @@ class AuthController extends AbstractController
         $rt = new RefreshToken();
         $rt->setRefreshToken($refreshTokenValue);
         $rt->setValid($validUntil);
-        $rt->setUsername($user->getEmailHash());
+        $rt->setUsername($user->getEmail());
 
         $this->entityManager->persist($rt);
         $this->entityManager->flush();
@@ -204,7 +199,7 @@ class AuthController extends AbstractController
             return new JsonResponse(['error' => 'Refresh token expired'], Response::HTTP_UNAUTHORIZED);
         }
 
-        $user = $this->entityManager->getRepository(User::class)->findOneBy(['emailHash' => $refreshToken->getUsername()]);
+        $user = $this->entityManager->getRepository(User::class)->findOneBy(['email' => $refreshToken->getUsername()]);
 
         if (!$user) {
             return new JsonResponse(['error' => 'User not found'], Response::HTTP_UNAUTHORIZED);
