@@ -33,7 +33,13 @@ class TagController extends AbstractController
     #[Route('/', name: 'list', methods: ['GET'])]
     public function getTags(): JsonResponse
     {
-        $tags = $this->entityManager->getRepository(Tag::class)->findAll();
+        $user = $this->getUser();
+
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+        }
+
+        $tags = $this->entityManager->getRepository(Tag::class)->findBy(['userId' => $user]);
 
         return new JsonResponse($tags, Response::HTTP_OK);
     }
@@ -41,12 +47,32 @@ class TagController extends AbstractController
     #[Route('/{id}', name: 'show', methods: ['GET'])]
     public function getTag(Tag $tag): JsonResponse
     {
+        $user = $this->getUser();
+
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+        }
+
+        if ($tag->getUser()?->getId() !== $user->getId()) {
+            return new JsonResponse(['error' => 'Forbidden'], Response::HTTP_FORBIDDEN);
+        }
+
         return new JsonResponse($tag, Response::HTTP_OK);
     }
 
     #[Route('/{id}/notes', name: 'get_notes', methods: ['GET'])]
     public function getTagNotes(Tag $tag): JsonResponse
     {
+        $user = $this->getUser();
+
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+        }
+
+        if ($tag->getUser()?->getId() !== $user->getId()) {
+            return new JsonResponse(['error' => 'Forbidden'], Response::HTTP_FORBIDDEN);
+        }
+
         return new JsonResponse($tag->getNotes(), Response::HTTP_OK);
     }
 
@@ -57,7 +83,7 @@ class TagController extends AbstractController
 
         $user = $this->getUser();
 
-        if (!$user) {
+        if (!$user instanceof User) {
             return new JsonResponse(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
         }
 
@@ -79,9 +105,9 @@ class TagController extends AbstractController
         }
 
         $tag = new Tag();
-        $tag->setName($data['name']);
-        $tag->setColor($data['color']);
-        $tag->setUser($this->entityManager->getRepository(User::class)->findOneBy(['email' => $user->getUserIdentifier()]));
+        $tag->setName($dto->name);
+        $tag->setColor($dto->color ?? '#3b82f6');
+        $tag->setUser($user);
 
         $this->entityManager->persist($tag);
         $this->entityManager->flush();
@@ -96,11 +122,11 @@ class TagController extends AbstractController
 
         $user = $this->getUser();
 
-        if (!$user) {
+        if (!$user instanceof User) {
             return new JsonResponse(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
         }
 
-        if ($tag->getUser() !== $user) {
+        if ($tag->getUser()?->getId() !== $user->getId()) {
             return new JsonResponse(['error' => 'Forbidden'], Response::HTTP_FORBIDDEN);
         }
 
@@ -136,11 +162,11 @@ class TagController extends AbstractController
     {
         $user = $this->getUser();
 
-        if (!$user) {
+        if (!$user instanceof User) {
             return new JsonResponse(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
         }
 
-        if ($tag->getUser() !== $user) {
+        if ($tag->getUser()?->getId() !== $user->getId()) {
             return new JsonResponse(['error' => 'Forbidden'], Response::HTTP_FORBIDDEN);
         }
 
