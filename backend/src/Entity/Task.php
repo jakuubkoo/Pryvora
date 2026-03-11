@@ -28,10 +28,10 @@ class Task
     private ?string $description = null;
 
     #[ORM\Column(enumType: TaskStatus::class)]
-    private ?string $status = null;
+    private TaskStatus $status = TaskStatus::TODO;
 
     #[ORM\Column(enumType: TaskPriority::class)]
-    private ?string $priority = null;
+    private TaskPriority $priority = TaskPriority::LOW;
 
     #[ORM\Column(type: Types::DATE_IMMUTABLE, nullable: true)]
     private ?\DateTimeImmutable $dueDate = null;
@@ -109,24 +109,24 @@ class Task
         return $this;
     }
 
-    public function getStatus(): ?string
+    public function getStatus(): TaskStatus
     {
         return $this->status;
     }
 
-    public function setStatus(string $status): static
+    public function setStatus(TaskStatus $status): static
     {
         $this->status = $status;
 
         return $this;
     }
 
-    public function getPriority(): ?string
+    public function getPriority(): TaskPriority
     {
         return $this->priority;
     }
 
-    public function setPriority(string $priority): static
+    public function setPriority(TaskPriority $priority): static
     {
         $this->priority = $priority;
 
