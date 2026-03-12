@@ -96,4 +96,28 @@ class TaskRepository extends ServiceEntityRepository
             ->getQuery()
             ->getResult();
     }
+
+    /**
+     * Retrieves upcoming tasks assigned to the specified user.
+     *
+     * This method queries the database to find all tasks associated with the provided
+     * user that have a due date later than today.
+     *
+     * @param User $user the user for whom to retrieve upcoming tasks
+     *
+     * @return array<Task> an array of upcoming tasks sorted by their due date in ascending order
+     */
+    public function findUpcomingByUser(User $user): array
+    {
+        $today = new \DateTimeImmutable('today');
+
+        return $this->createQueryBuilder('t')
+            ->where('t.author = :user')
+            ->andWhere('t.dueDate > :today')
+            ->setParameter('user', $user)
+            ->setParameter('today', $today)
+            ->orderBy('t.dueDate', 'ASC')
+            ->getQuery()
+            ->getResult();
+    }
 }
