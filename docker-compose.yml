@@ -13,7 +13,6 @@ services:
       - backend_vendor:/var/www/html/vendor
       - backend_var:/var/www/html/var
     environment:
-      DATABASE_URL: "postgresql://pryvora:pryvora@db:5432/pryvora?serverVersion=16&charset=utf8"
       APP_ENV: dev
       APP_SECRET: dev_secret_change_in_production
     depends_on:
