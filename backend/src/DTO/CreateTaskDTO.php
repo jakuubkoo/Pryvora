@@ -35,8 +35,7 @@ class CreateTaskDTO
     public static function fromArray(array $data): self
     {
         $due_date = null;
-        if (isset($data['due_date']) && !empty($data['due_date']))
-        {
+        if (isset($data['due_date']) && !empty($data['due_date'])) {
             $due_date = new \DateTimeImmutable($data['due_date']);
         }
 
