@@ -33,7 +33,7 @@ class TaskRepository extends ServiceEntityRepository
     public function findByUser(User $user): array
     {
         return $this->createQueryBuilder('t')
-            ->where('t.user = :user')
+            ->where('t.author = :user')
             ->setParameter('user', $user)
             ->orderBy('t.createdAt', 'DESC')
             ->getQuery()
@@ -58,7 +58,7 @@ class TaskRepository extends ServiceEntityRepository
         $tomorrow = new \DateTime('tomorrow');
 
         return $this->createQueryBuilder('t')
-            ->where('t.user = :user')
+            ->where('t.author = :user')
             ->andWhere('t.dueDate >= :today')
             ->andWhere('t.dueDate < :tomorrow')
             ->andWhere('t.status != :done')
@@ -86,7 +86,7 @@ class TaskRepository extends ServiceEntityRepository
         $today = new \DateTimeImmutable('today');
 
         return $this->createQueryBuilder('t')
-            ->where('t.user = :user')
+            ->where('t.author = :user')
             ->andWhere('t.dueDate < :today')
             ->andWhere('t.status != :done')
             ->setParameter('user', $user)

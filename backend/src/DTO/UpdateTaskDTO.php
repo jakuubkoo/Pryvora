@@ -15,7 +15,6 @@ class UpdateTaskDTO
         #[Assert\Length(min: 3, max: 255, minMessage: 'Title must be at least 3 characters', maxMessage: 'Title cannot be longer than 255 characters')]
         public ?string $title = null,
 
-        #[Assert\Length(min: 3, minMessage: 'Description must be at least 3 characters')]
         public ?string $description = null,
 
         public ?TaskStatus $status = null,

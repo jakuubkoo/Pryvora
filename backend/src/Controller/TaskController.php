@@ -240,7 +240,7 @@ class TaskController extends AbstractController
         return [
             'id' => $task->getId(),
             'title' => $task->getTitle(),
-            'description' => $this->encryptionService->decrypt($task->getDescription() ?? ''),
+            'description' => $task->getDescription() ? $this->encryptionService->decrypt($task->getDescription()) : '',
             'status' => $task->getStatus()->value,
             'priority' => $task->getPriority()->value,
             'due_date' => $task->getDueDate()?->format('Y-m-d H:i:s'),

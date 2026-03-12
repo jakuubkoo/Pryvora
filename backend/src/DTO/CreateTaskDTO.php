@@ -15,7 +15,6 @@ class CreateTaskDTO
         #[Assert\Length(min: 3, max: 255, minMessage: 'Title must be at least 3 characters', maxMessage: 'Title cannot be longer than 255 characters')]
         public readonly string $title,
 
-        #[Assert\Length(min: 3, minMessage: 'Description must be at least 3 characters')]
         public readonly ?string $description = null,
 
         public readonly TaskStatus $status = TaskStatus::TODO,
