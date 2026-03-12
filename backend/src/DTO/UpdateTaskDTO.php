@@ -43,10 +43,10 @@ class UpdateTaskDTO
             $dto->description = $data['description'];
         }
         if (\array_key_exists('status', $data)) {
-            $dto->status = $data['status'];
+            $dto->status = TaskStatus::from($data['status']);
         }
         if (\array_key_exists('priority', $data)) {
-            $dto->priority = $data['priority'];
+            $dto->priority = TaskPriority::from($data['priority']);
         }
         if (\array_key_exists('dueDate', $data)) {
             $dto->dueDate = $data['dueDate'];

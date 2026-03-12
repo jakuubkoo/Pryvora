@@ -38,8 +38,8 @@ class CreateTaskDTO
         return new self(
             $data['title'] ?? '',
             $data['description'] ?? null,
-            $data['status'] ?? TaskStatus::TODO->value,
-            $data['priority'] ?? TaskPriority::LOW->value,
+            isset($data['status']) ? TaskStatus::from($data['status']) : TaskStatus::TODO,
+            isset($data['priority']) ? TaskPriority::from($data['priority']) : TaskPriority::LOW,
             $data['dueDate'] ?? null,
         );
     }
