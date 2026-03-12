@@ -80,12 +80,12 @@ class DashboardController extends AbstractController
     private function serializeTask(Task $task): array
     {
         return [
-            $task->getCreatedAt()?->format('Y-m-d H:i:s') => [
-                'id' => $task->getId(),
-                'title' => $task->getTitle(),
-                'description' => $task->getDescription() ? $this->encryptionService->decrypt($task->getDescription()) : '',
-                'status' => $task->getStatus()->value,
-            ],
+            'id' => $task->getId(),
+            'title' => $task->getTitle(),
+            'description' => $task->getDescription() ? $this->encryptionService->decrypt($task->getDescription()) : '',
+            'status' => $task->getStatus()->value,
+            'due_date' => $task->getDueDate()?->format('Y-m-d'),
+            'created_at' => $task->getCreatedAt()?->format('Y-m-d H:i:s'),
         ];
     }
 }
