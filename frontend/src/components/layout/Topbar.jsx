@@ -42,7 +42,7 @@ export default function Topbar({ title = 'Dashboard' })
   }
 
   return (
-    <div className="h-16 border-b border-[#1a1a1a] bg-[#0a0a0a] flex items-center justify-between px-6">
+    <div className="h-16 border-b border-[#1a1a1a] bg-[#0f0f0f] flex items-center justify-between px-6">
       <motion.h2
         className="text-lg font-medium text-[#e5e5e5]"
         variants={title_variants}
