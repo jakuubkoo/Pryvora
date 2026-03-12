@@ -34,12 +34,18 @@ class CreateTaskDTO
      */
     public static function fromArray(array $data): self
     {
+        $due_date = null;
+        if (isset($data['due_date']) && !empty($data['due_date']))
+        {
+            $due_date = new \DateTimeImmutable($data['due_date']);
+        }
+
         return new self(
             $data['title'] ?? '',
             $data['description'] ?? null,
             isset($data['status']) ? TaskStatus::from($data['status']) : TaskStatus::TODO,
             isset($data['priority']) ? TaskPriority::from($data['priority']) : TaskPriority::LOW,
-            $data['dueDate'] ?? null,
+            $due_date,
         );
     }
 }

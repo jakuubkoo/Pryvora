@@ -47,8 +47,8 @@ class UpdateTaskDTO
         if (\array_key_exists('priority', $data)) {
             $dto->priority = TaskPriority::from($data['priority']);
         }
-        if (\array_key_exists('dueDate', $data)) {
-            $dto->dueDate = $data['dueDate'];
+        if (\array_key_exists('due_date', $data)) {
+            $dto->dueDate = !empty($data['due_date']) ? new \DateTimeImmutable($data['due_date']) : null;
         }
 
         return $dto;
