@@ -363,7 +363,7 @@ export default function Tasks()
                 </p>
               </motion.div>
             ) : (
-              <div className="space-y-3">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 p-4">
                 {filtered_tasks.map((task) => (
                   <TaskItem
                     key={task.id}

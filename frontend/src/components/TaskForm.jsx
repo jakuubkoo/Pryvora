@@ -124,7 +124,7 @@ export default function TaskForm({ task, on_submit, on_cancel })
               placeholder="e.g., Complete project proposal"
               required
               autoFocus
-              className="bg-[#0a0a0a] border-[#1a1a1a] text-[#e5e5e5] placeholder:text-[#555555] focus:border-[#2a2a2a]"
+              className="bg-transparent border-0 border-b border-white/10 rounded-none text-[#e5e5e5] placeholder:text-[#555555] focus:border-indigo-500 focus-visible:ring-0 px-0"
             />
           </div>
 
@@ -139,7 +139,7 @@ export default function TaskForm({ task, on_submit, on_cancel })
               onChange={(e) => handle_change('description', e.target.value)}
               placeholder="Add more details about this task..."
               rows={4}
-              className="bg-[#0a0a0a] border-[#1a1a1a] text-[#e5e5e5] placeholder:text-[#555555] focus:border-[#2a2a2a] resize-none"
+              className="bg-transparent border-0 border-b border-white/10 rounded-none text-[#e5e5e5] placeholder:text-[#555555] focus:border-indigo-500 focus-visible:ring-0 resize-none px-0"
             />
           </div>
 
@@ -186,43 +186,47 @@ export default function TaskForm({ task, on_submit, on_cancel })
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="priority" className="text-[#e5e5e5] text-sm font-medium">
+              <Label className="text-[#e5e5e5] text-sm font-medium">
                 Priority
               </Label>
-              <Select value={form_data.priority} onValueChange={(value) => handle_change('priority', value)}>
-                <SelectTrigger className="bg-[#0a0a0a] border-[#1a1a1a] text-[#e5e5e5] focus:border-[#2a2a2a] cursor-pointer">
-                  <SelectValue/>
-                </SelectTrigger>
-                <SelectContent className="bg-[#0f0f0f] border-[#1a1a1a]">
-                  <SelectItem
-                    value="low"
-                    className="text-[#e5e5e5] cursor-pointer hover:bg-blue-500/10 focus:bg-blue-500/10"
-                  >
-                    <div className="flex items-center gap-2">
-                      <SignalIcon className="size-4 text-blue-400 rotate-180"/>
-                      <span className="text-blue-400">Low</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem
-                    value="medium"
-                    className="text-[#e5e5e5] cursor-pointer hover:bg-yellow-500/10 focus:bg-yellow-500/10"
-                  >
-                    <div className="flex items-center gap-2">
-                      <AlertCircleIcon className="size-4 text-yellow-400"/>
-                      <span className="text-yellow-400">Medium</span>
-                    </div>
-                  </SelectItem>
-                  <SelectItem
-                    value="high"
-                    className="text-[#e5e5e5] cursor-pointer hover:bg-red-500/10 focus:bg-red-500/10"
-                  >
-                    <div className="flex items-center gap-2">
-                      <FlagIcon className="size-4 text-red-400"/>
-                      <span className="text-red-400">High</span>
-                    </div>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => handle_change('priority', 'low')}
+                  className={cn(
+                    'flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer',
+                    form_data.priority === 'low'
+                      ? 'bg-slate-700 text-slate-100 border border-slate-500'
+                      : 'bg-transparent border border-slate-500 text-slate-400 hover:bg-slate-500/10'
+                  )}
+                >
+                  Low
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handle_change('priority', 'medium')}
+                  className={cn(
+                    'flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer',
+                    form_data.priority === 'medium'
+                      ? 'bg-amber-500/20 text-amber-300 border border-amber-400'
+                      : 'bg-transparent border border-amber-500 text-amber-400 hover:bg-amber-500/10'
+                  )}
+                >
+                  Medium
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handle_change('priority', 'high')}
+                  className={cn(
+                    'flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer',
+                    form_data.priority === 'high'
+                      ? 'bg-rose-500/20 text-rose-300 border border-rose-400'
+                      : 'bg-transparent border border-rose-500 text-rose-400 hover:bg-rose-500/10'
+                  )}
+                >
+                  High
+                </button>
+              </div>
             </div>
           </div>
 
@@ -234,28 +238,32 @@ export default function TaskForm({ task, on_submit, on_cancel })
 
             {/* Quick Select Buttons */}
             <div className="flex flex-wrap gap-2">
-              {quick_date_options.map((option) => (
-                <Button
-                  key={option.label}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handle_quick_date(option.getValue)}
-                  className="text-xs bg-[#0a0a0a] border-[#1a1a1a] text-[#888888] hover:text-[#e5e5e5] hover:bg-[#1a1a1a] hover:border-[#2a2a2a] cursor-pointer"
-                >
-                  {option.label}
-                </Button>
-              ))}
+              {quick_date_options.map((option) => {
+                const is_selected = form_data.due_date === format(option.getValue(), 'yyyy-MM-dd')
+                return (
+                  <button
+                    key={option.label}
+                    type="button"
+                    onClick={() => handle_quick_date(option.getValue)}
+                    className={cn(
+                      'px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer',
+                      is_selected
+                        ? 'bg-indigo-500 text-white border border-indigo-500'
+                        : 'bg-transparent border border-white/20 text-[#888888] hover:border-white/40 hover:text-[#e5e5e5]'
+                    )}
+                  >
+                    {option.label}
+                  </button>
+                )
+              })}
               {form_data.due_date && (
-                <Button
+                <button
                   type="button"
-                  variant="outline"
-                  size="sm"
                   onClick={() => handle_change('due_date', '')}
-                  className="text-xs bg-[#0a0a0a] border-[#1a1a1a] text-red-400 hover:text-red-300 hover:bg-red-500/10 hover:border-red-500/20 cursor-pointer"
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium bg-transparent border border-rose-500/20 text-rose-400 hover:bg-rose-500/10 hover:border-rose-500/40 transition-all duration-150 cursor-pointer"
                 >
                   Clear
-                </Button>
+                </button>
               )}
             </div>
 
@@ -273,7 +281,7 @@ export default function TaskForm({ task, on_submit, on_cancel })
               type="button"
               variant="outline"
               onClick={on_cancel}
-              className="min-w-[100px] cursor-pointer"
+              className="min-w-[100px] cursor-pointer border border-white/20 hover:border-white/40"
             >
               Cancel
             </Button>
