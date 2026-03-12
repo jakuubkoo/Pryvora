@@ -9,12 +9,12 @@ import { cn } from '@/lib/utils'
 
 const priority_colors = {
   low: 'bg-slate-800 text-slate-400 border border-slate-600',
-  medium: 'bg-amber-950 text-amber-400 border border-amber-700',
-  high: 'bg-rose-950 text-rose-400 border border-rose-700',
+  medium: 'bg-amber-900/60 text-amber-300 border border-amber-600',
+  high: 'bg-rose-900/60 text-rose-300 border border-rose-600',
 }
 
 const status_colors = {
-  todo: 'bg-slate-800 text-slate-300 border border-slate-600',
+  todo: 'bg-zinc-700 text-zinc-200 border border-zinc-500',
   in_progress: 'bg-indigo-950 text-indigo-300 border border-indigo-700',
   done: 'bg-emerald-950 text-emerald-400 border border-emerald-700 line-through opacity-60',
 }
@@ -23,6 +23,14 @@ const status_border_colors = {
   todo: 'border-l-slate-500/50',
   in_progress: 'border-l-indigo-500/50',
   done: 'border-l-green-500/50',
+}
+
+const capitalize_text = (text) =>
+{
+  return text
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ')
 }
 
 export default function TaskItem({ task, on_toggle_status, on_edit, on_delete })
@@ -65,9 +73,9 @@ export default function TaskItem({ task, on_toggle_status, on_edit, on_delete })
   return (
     <motion.div
       className={cn(
-        'group relative flex flex-col justify-between p-4 rounded-lg border-l-4 transition-all duration-150 cursor-pointer h-48',
-        'bg-[#0a0a0a]',
-        'hover:bg-white/5',
+        'group relative flex flex-col justify-between p-4 rounded-lg border-l-4 border border-white/10 transition-all duration-150 cursor-pointer h-48',
+        'bg-zinc-900',
+        'hover:bg-zinc-800 hover:border-white/20',
         status_border_colors[task.status],
         task.status === 'done' && 'opacity-50',
         deleting && 'opacity-30 pointer-events-none'
@@ -79,13 +87,13 @@ export default function TaskItem({ task, on_toggle_status, on_edit, on_delete })
         <Checkbox
           checked={task.status === 'done'}
           onCheckedChange={() => on_toggle_status(task)}
-          className="transition-all cursor-pointer mt-0.5"
+          className="transition-all cursor-pointer mt-0.5 border-zinc-600 data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600"
         />
 
         <div className="flex-1 min-w-0">
           <h3
             className={cn(
-              'text-base font-medium text-[#e5e5e5] leading-snug',
+              'text-sm font-semibold text-white leading-snug',
               task.status === 'done' && 'line-through text-[#666666]'
             )}
           >
@@ -116,7 +124,7 @@ export default function TaskItem({ task, on_toggle_status, on_edit, on_delete })
 
       {/* Description */}
       {task.description && (
-        <p className="text-sm text-[#888888] leading-relaxed whitespace-pre-wrap mb-auto line-clamp-3">
+        <p className="text-xs text-zinc-400 leading-relaxed whitespace-pre-wrap mb-auto line-clamp-3">
           {task.description}
         </p>
       )}
@@ -126,15 +134,15 @@ export default function TaskItem({ task, on_toggle_status, on_edit, on_delete })
         <Badge
           className={cn('text-xs font-medium px-2 py-0.5 rounded-md cursor-default', status_colors[task.status])}
         >
-          {task.status.replace('_', ' ')}
+          {capitalize_text(task.status)}
         </Badge>
         <Badge
           className={cn('text-xs font-medium px-2 py-0.5 rounded-md cursor-default', priority_colors[task.priority])}
         >
-          {task.priority}
+          {capitalize_text(task.priority)}
         </Badge>
         {task.due_date && (
-          <div className="text-xs text-slate-400 flex items-center gap-1">
+          <div className="text-xs text-zinc-400 flex items-center gap-1">
             {is_overdue() ? (
               <AlertCircleIcon className="size-3"/>
             ) : (

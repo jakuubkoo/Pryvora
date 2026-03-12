@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { PlusIcon, Loader2Icon, CheckCircle2Icon, ClockIcon, AlertCircleIcon } from 'lucide-react'
+import { PlusIcon, Loader2Icon, CheckCircle2Icon, ClockIcon, AlertCircleIcon, CircleDashedIcon, PlayCircleIcon } from 'lucide-react'
 import AppLayout from '@/components/layout/AppLayout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -67,7 +67,8 @@ export default function Tasks()
 
   const [all_tasks, set_all_tasks] = useState([])
   const [loading, set_loading] = useState(true)
-  const [filter, set_filter] = useState('all') // 'all', 'today', 'overdue'
+  const [category, set_category] = useState('all') // 'all', 'today', 'overdue'
+  const [status_filter, set_status_filter] = useState('all') // 'all', 'todo', 'in_progress', 'done'
   const [show_form, set_show_form] = useState(false)
   const [editing_task, set_editing_task] = useState(null)
 
@@ -80,7 +81,6 @@ export default function Tasks()
       if (response.ok)
       {
         const data = await response.json()
-        console.log('Fetched tasks:', data)
         set_all_tasks(data)
       }
       else
@@ -175,46 +175,83 @@ export default function Tasks()
   const get_filtered_tasks = () =>
   {
     const today = new Date().toISOString().split('T')[0]
+    let filtered = all_tasks
 
-    if (filter === 'today')
+    // First filter by category
+    if (category === 'today')
     {
-      return all_tasks.filter(t => {
+      filtered = filtered.filter(t => {
         if (!t.due_date) return false
-        return t.due_date.split(' ')[0] === today && t.status !== 'done'
+        return t.due_date.split(' ')[0] === today
       })
     }
-    else if (filter === 'overdue')
+    else if (category === 'overdue')
     {
-      return all_tasks.filter(t => {
+      filtered = filtered.filter(t => {
         if (!t.due_date) return false
         return t.due_date.split(' ')[0] < today && t.status !== 'done'
       })
     }
 
-    return all_tasks
+    // Then filter by status
+    if (status_filter === 'todo')
+    {
+      filtered = filtered.filter(t => t.status === 'todo')
+    }
+    else if (status_filter === 'in_progress')
+    {
+      filtered = filtered.filter(t => t.status === 'in_progress')
+    }
+    else if (status_filter === 'done')
+    {
+      filtered = filtered.filter(t => t.status === 'done')
+    }
+
+    return filtered
   }
 
   const get_task_counts = () =>
   {
     const today = new Date().toISOString().split('T')[0]
 
+    // Get category-filtered tasks first
+    let category_tasks = all_tasks
+    if (category === 'today')
+    {
+      category_tasks = all_tasks.filter(t => {
+        if (!t.due_date) return false
+        return t.due_date.split(' ')[0] === today
+      })
+    }
+    else if (category === 'overdue')
+    {
+      category_tasks = all_tasks.filter(t => {
+        if (!t.due_date) return false
+        return t.due_date.split(' ')[0] < today && t.status !== 'done'
+      })
+    }
+
     return {
+      // Category counts
       all: all_tasks.length,
       today: all_tasks.filter(t => {
         if (!t.due_date) return false
-        return t.due_date.split(' ')[0] === today && t.status !== 'done'
+        return t.due_date.split(' ')[0] === today
       }).length,
       overdue: all_tasks.filter(t => {
         if (!t.due_date) return false
         return t.due_date.split(' ')[0] < today && t.status !== 'done'
       }).length,
+      // Status counts within current category
+      status_all: category_tasks.length,
+      todo: category_tasks.filter(t => t.status === 'todo').length,
+      in_progress: category_tasks.filter(t => t.status === 'in_progress').length,
+      done: category_tasks.filter(t => t.status === 'done').length,
     }
   }
 
   const filtered_tasks = get_filtered_tasks()
   const counts = get_task_counts()
-
-  console.log('All tasks:', all_tasks.length, 'Filtered tasks:', filtered_tasks.length, 'Filter:', filter)
 
   return (
     <AppLayout title="Tasks">
@@ -240,92 +277,206 @@ export default function Tasks()
           </Button>
         </div>
 
-        {/* Filter Tabs */}
-        <div className="flex flex-wrap gap-3">
-          <Button
-            variant={filter === 'all' ? 'default' : 'outline'}
-            onClick={() => set_filter('all')}
-            size="default"
-            className={cn(
-              'gap-2 transition-all cursor-pointer',
-              filter === 'all'
-                ? 'bg-[#e5e5e5] text-[#0a0a0a] hover:bg-[#d5d5d5] shadow-md border-[#e5e5e5]'
-                : 'hover:bg-[#1a1a1a] hover:border-[#2a2a2a]'
-            )}
-          >
-            <CheckCircle2Icon className="size-4"/>
-            All
-            {counts.all > 0 && (
-              <Badge
-                variant="secondary"
-                className={cn(
-                  "ml-1 px-1.5 min-w-[1.25rem] justify-center",
-                  filter === 'all' ? 'bg-[#0a0a0a] text-[#e5e5e5]' : ''
-                )}
-              >
-                {counts.all}
-              </Badge>
-            )}
-          </Button>
-          <Button
-            variant={filter === 'today' ? 'default' : 'outline'}
-            onClick={() => set_filter('today')}
-            size="default"
-            className={cn(
-              'gap-2 transition-all cursor-pointer',
-              filter === 'today'
-                ? 'bg-blue-500 text-white hover:bg-blue-600 shadow-md border-blue-500'
-                : 'hover:bg-[#1a1a1a] hover:border-[#2a2a2a]'
-            )}
-          >
-            <ClockIcon className="size-4"/>
-            Today
-            {counts.today > 0 && (
-              <Badge
-                variant="secondary"
-                className={cn(
-                  "ml-1 px-1.5 min-w-[1.25rem] justify-center",
-                  filter === 'today' ? 'bg-blue-700 text-white border-blue-700' : ''
-                )}
-              >
-                {counts.today}
-              </Badge>
-            )}
-          </Button>
-          <Button
-            variant={filter === 'overdue' ? 'default' : 'outline'}
-            onClick={() => set_filter('overdue')}
-            size="default"
-            className={cn(
-              'gap-2 transition-all cursor-pointer',
-              filter === 'overdue'
-                ? 'bg-red-500 text-white hover:bg-red-600 shadow-md border-red-500'
-                : 'hover:bg-[#1a1a1a] hover:border-[#2a2a2a]'
-            )}
-          >
-            <AlertCircleIcon className="size-4"/>
-            Overdue
-            {counts.overdue > 0 && (
-              <Badge
-                variant="destructive"
-                className={cn(
-                  "ml-1 px-1.5 min-w-[1.25rem] justify-center",
-                  filter === 'overdue' ? 'bg-red-700 text-white border-red-700' : ''
-                )}
-              >
-                {counts.overdue}
-              </Badge>
-            )}
-          </Button>
+        {/* Category Tabs */}
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-3">
+            <Button
+              variant={category === 'all' ? 'default' : 'outline'}
+              onClick={() => set_category('all')}
+              size="default"
+              className={cn(
+                'gap-2 transition-all cursor-pointer',
+                category === 'all'
+                  ? 'bg-[#e5e5e5] text-[#0a0a0a] hover:bg-[#d5d5d5] shadow-md border-[#e5e5e5]'
+                  : 'hover:bg-[#1a1a1a] hover:border-[#2a2a2a]'
+              )}
+            >
+              <CheckCircle2Icon className="size-4"/>
+              All
+              {counts.all > 0 && (
+                <Badge
+                  variant="secondary"
+                  className={cn(
+                    "ml-1 px-1.5 min-w-[1.25rem] justify-center",
+                    category === 'all' ? 'bg-[#0a0a0a] text-[#e5e5e5]' : ''
+                  )}
+                >
+                  {counts.all}
+                </Badge>
+              )}
+            </Button>
+            <Button
+              variant={category === 'today' ? 'default' : 'outline'}
+              onClick={() => set_category('today')}
+              size="default"
+              className={cn(
+                'gap-2 transition-all cursor-pointer',
+                category === 'today'
+                  ? 'bg-blue-500 text-white hover:bg-blue-600 shadow-md border-blue-500'
+                  : 'hover:bg-[#1a1a1a] hover:border-[#2a2a2a]'
+              )}
+            >
+              <ClockIcon className="size-4"/>
+              Today
+              {counts.today > 0 && (
+                <Badge
+                  variant="secondary"
+                  className={cn(
+                    "ml-1 px-1.5 min-w-[1.25rem] justify-center",
+                    category === 'today' ? 'bg-blue-700 text-white border-blue-700' : ''
+                  )}
+                >
+                  {counts.today}
+                </Badge>
+              )}
+            </Button>
+            <Button
+              variant={category === 'overdue' ? 'default' : 'outline'}
+              onClick={() => set_category('overdue')}
+              size="default"
+              className={cn(
+                'gap-2 transition-all cursor-pointer',
+                category === 'overdue'
+                  ? 'bg-red-500 text-white hover:bg-red-600 shadow-md border-red-500'
+                  : 'hover:bg-[#1a1a1a] hover:border-[#2a2a2a]'
+              )}
+            >
+              <AlertCircleIcon className="size-4"/>
+              Overdue
+              {counts.overdue > 0 && (
+                <Badge
+                  variant="destructive"
+                  className={cn(
+                    "ml-1 px-1.5 min-w-[1.25rem] justify-center",
+                    category === 'overdue' ? 'bg-red-700 text-white border-red-700' : ''
+                  )}
+                >
+                  {counts.overdue}
+                </Badge>
+              )}
+            </Button>
+          </div>
+
+          {/* Status Filter Tabs */}
+          <div className="flex flex-wrap gap-2 pl-2 border-l-2 border-white/10">
+            <Button
+              variant={status_filter === 'all' ? 'default' : 'outline'}
+              onClick={() => set_status_filter('all')}
+              size="sm"
+              className={cn(
+                'gap-2 transition-all cursor-pointer',
+                status_filter === 'all'
+                  ? 'bg-zinc-700 text-white hover:bg-zinc-800 shadow-sm'
+                  : 'hover:bg-[#1a1a1a] hover:border-[#2a2a2a]'
+              )}
+            >
+              All Status
+              {counts.status_all > 0 && (
+                <Badge
+                  variant="secondary"
+                  className={cn(
+                    "ml-1 px-1.5 min-w-[1.25rem] justify-center text-xs",
+                    status_filter === 'all' ? 'bg-zinc-900 text-white' : ''
+                  )}
+                >
+                  {counts.status_all}
+                </Badge>
+              )}
+            </Button>
+            <Button
+              variant={status_filter === 'todo' ? 'default' : 'outline'}
+              onClick={() => set_status_filter('todo')}
+              size="sm"
+              className={cn(
+                'gap-2 transition-all cursor-pointer',
+                status_filter === 'todo'
+                  ? 'bg-zinc-600 text-white hover:bg-zinc-700 shadow-sm'
+                  : 'hover:bg-[#1a1a1a] hover:border-[#2a2a2a]'
+              )}
+            >
+              <CircleDashedIcon className="size-3.5"/>
+              To Do
+              {counts.todo > 0 && (
+                <Badge
+                  variant="secondary"
+                  className={cn(
+                    "ml-1 px-1.5 min-w-[1.25rem] justify-center text-xs",
+                    status_filter === 'todo' ? 'bg-zinc-800 text-white' : ''
+                  )}
+                >
+                  {counts.todo}
+                </Badge>
+              )}
+            </Button>
+            <Button
+              variant={status_filter === 'in_progress' ? 'default' : 'outline'}
+              onClick={() => set_status_filter('in_progress')}
+              size="sm"
+              className={cn(
+                'gap-2 transition-all cursor-pointer',
+                status_filter === 'in_progress'
+                  ? 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm'
+                  : 'hover:bg-[#1a1a1a] hover:border-[#2a2a2a]'
+              )}
+            >
+              <PlayCircleIcon className="size-3.5"/>
+              In Progress
+              {counts.in_progress > 0 && (
+                <Badge
+                  variant="secondary"
+                  className={cn(
+                    "ml-1 px-1.5 min-w-[1.25rem] justify-center text-xs",
+                    status_filter === 'in_progress' ? 'bg-indigo-800 text-white' : ''
+                  )}
+                >
+                  {counts.in_progress}
+                </Badge>
+              )}
+            </Button>
+            <Button
+              variant={status_filter === 'done' ? 'default' : 'outline'}
+              onClick={() => set_status_filter('done')}
+              size="sm"
+              className={cn(
+                'gap-2 transition-all cursor-pointer',
+                status_filter === 'done'
+                  ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm'
+                  : 'hover:bg-[#1a1a1a] hover:border-[#2a2a2a]'
+              )}
+            >
+              <CheckCircle2Icon className="size-3.5"/>
+              Done
+              {counts.done > 0 && (
+                <Badge
+                  variant="secondary"
+                  className={cn(
+                    "ml-1 px-1.5 min-w-[1.25rem] justify-center text-xs",
+                    status_filter === 'done' ? 'bg-emerald-800 text-white' : ''
+                  )}
+                >
+                  {counts.done}
+                </Badge>
+              )}
+            </Button>
+          </div>
         </div>
 
         {/* Task List */}
         <Card className="border-[#1a1a1a] bg-[#0f0f0f]">
           <CardHeader className="pb-4">
             <CardTitle className="text-[#e5e5e5] text-lg">
-              {filter === 'all' && 'All Tasks'}
-              {filter === 'today' && "Today's Tasks"}
-              {filter === 'overdue' && 'Overdue Tasks'}
+              {category === 'all' && status_filter === 'all' && 'All Tasks'}
+              {category === 'all' && status_filter === 'todo' && 'All To Do Tasks'}
+              {category === 'all' && status_filter === 'in_progress' && 'All In Progress Tasks'}
+              {category === 'all' && status_filter === 'done' && 'All Completed Tasks'}
+              {category === 'today' && status_filter === 'all' && "Today's Tasks"}
+              {category === 'today' && status_filter === 'todo' && "Today's To Do Tasks"}
+              {category === 'today' && status_filter === 'in_progress' && "Today's In Progress Tasks"}
+              {category === 'today' && status_filter === 'done' && "Today's Completed Tasks"}
+              {category === 'overdue' && status_filter === 'all' && 'Overdue Tasks'}
+              {category === 'overdue' && status_filter === 'todo' && 'Overdue To Do Tasks'}
+              {category === 'overdue' && status_filter === 'in_progress' && 'Overdue In Progress Tasks'}
+              {category === 'overdue' && status_filter === 'done' && 'Overdue Completed Tasks'}
             </CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
@@ -347,19 +498,22 @@ export default function Tasks()
                 transition={{ duration: 0.3 }}
               >
                 <div className="rounded-full bg-[#1a1a1a] p-4 mb-4">
-                  {filter === 'all' && <CheckCircle2Icon className="size-8 text-[#666666]"/>}
-                  {filter === 'today' && <ClockIcon className="size-8 text-[#666666]"/>}
-                  {filter === 'overdue' && <AlertCircleIcon className="size-8 text-[#666666]"/>}
+                  {status_filter === 'all' && category === 'all' && <CheckCircle2Icon className="size-8 text-[#666666]"/>}
+                  {status_filter === 'all' && category === 'today' && <ClockIcon className="size-8 text-[#666666]"/>}
+                  {status_filter === 'all' && category === 'overdue' && <AlertCircleIcon className="size-8 text-[#666666]"/>}
+                  {status_filter === 'todo' && <CircleDashedIcon className="size-8 text-[#666666]"/>}
+                  {status_filter === 'in_progress' && <PlayCircleIcon className="size-8 text-[#666666]"/>}
+                  {status_filter === 'done' && <CheckCircle2Icon className="size-8 text-[#666666]"/>}
                 </div>
                 <p className="text-sm font-medium text-[#888888] mb-1">
-                  {filter === 'all' && 'No tasks yet'}
-                  {filter === 'today' && 'No tasks due today'}
-                  {filter === 'overdue' && 'No overdue tasks'}
+                  No tasks found
                 </p>
                 <p className="text-xs text-[#666666]">
-                  {filter === 'all' && 'Create your first task to get started'}
-                  {filter === 'today' && 'You\'re all caught up for today!'}
-                  {filter === 'overdue' && 'Great job staying on track!'}
+                  {category === 'all' && status_filter === 'all' && 'Create your first task to get started'}
+                  {category === 'all' && status_filter !== 'all' && `No ${status_filter.replace('_', ' ')} tasks yet`}
+                  {category === 'today' && status_filter === 'all' && 'No tasks due today'}
+                  {category === 'today' && status_filter !== 'all' && `No ${status_filter.replace('_', ' ')} tasks due today`}
+                  {category === 'overdue' && 'Great job staying on track!'}
                 </p>
               </motion.div>
             ) : (
