@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { useAuth } from '@/contexts/AuthContext'
+import Search from '@/components/Search'
 
 const title_variants = {
   hidden: { opacity: 0, x: -8 },
@@ -42,19 +43,26 @@ export default function Topbar({ title = 'Dashboard' })
   }
 
   return (
-    <div className="h-16 border-b border-[#1a1a1a] bg-[#0f0f0f] flex items-center justify-between px-6">
+    <div className="h-16 border-b border-[#1a1a1a] bg-[#0f0f0f] flex items-center justify-between px-6 gap-6">
       <motion.h2
-        className="text-lg font-medium text-[#e5e5e5]"
+        className="text-lg font-medium text-[#e5e5e5] shrink-0"
         variants={title_variants}
         initial="hidden"
         animate="visible"
       >
         {title}
       </motion.h2>
+      
+      {/* Centered Search */}
+      <div className="flex-1 flex justify-center">
+        <Search />
+      </div>
+      
       <motion.div
         variants={avatar_variants}
         initial="hidden"
         animate="visible"
+        className="shrink-0"
       >
         <Avatar className="h-8 w-8 bg-[#1a1a1a] border border-[#2a2a2a]">
           <AvatarFallback className="bg-[#1a1a1a] text-[#888888] text-xs">

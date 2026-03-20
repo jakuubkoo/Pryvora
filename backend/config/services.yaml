@@ -26,9 +26,26 @@ services:
         arguments:
             $key: '%env(resolve:PRYVORA_ENCRYPTION_KEY)%'
 
+    App\Service\Search\ElasticsearchClientFactory:
+        arguments:
+            $elasticsearch_host: '%env(ELASTICSEARCH_HOST)%'
+
+    App\Service\Search\SearchIndexer:
+        arguments:
+            $indexName: '%env(ELASTICSEARCH_INDEX_NAME)%'
+
 when@test:
     services:
         _defaults:
             public: true
             autowire: true
             autoconfigure: true
+
+        # Use empty host for tests - ElasticsearchClientFactory will handle this gracefully
+        App\Service\Search\ElasticsearchClientFactory:
+            arguments:
+                $elasticsearch_host: ''
+
+        App\Service\Search\SearchIndexer:
+            arguments:
+                $indexName: 'pryvora_test'
