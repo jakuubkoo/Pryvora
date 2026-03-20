@@ -26,6 +26,10 @@ services:
         arguments:
             $key: '%env(resolve:PRYVORA_ENCRYPTION_KEY)%'
 
+    App\Service\Search\ElasticsearchClientFactory:
+        arguments:
+            $elasticsearchUrl: '%env(ELASTICSEARCH_HOST)%'
+
 when@test:
     services:
         _defaults:
