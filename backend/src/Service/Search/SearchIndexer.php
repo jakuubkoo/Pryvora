@@ -8,7 +8,6 @@ use App\Entity\Note;
 use App\Entity\Task;
 use Elastica\Client;
 use Elastica\Document;
-use Elastica\Exception\ClientException;
 use Psr\Log\LoggerInterface;
 
 class SearchIndexer
@@ -72,11 +71,9 @@ class SearchIndexer
                     ],
                 ]);
             }
-        } catch (ClientException $e) {
-            $this->logger->debug('Elasticsearch index creation skipped or failed', [
-                'error' => $e->getMessage(),
-                'type' => $e::class,
-            ]);
+        } catch (\Exception $e) {
+            // Silently fail - Elasticsearch is not available or not configured
+            return;
         }
     }
 
@@ -95,11 +92,8 @@ class SearchIndexer
         try {
             $this->createIndex();
             $index = $this->getClient()->getIndex($this->indexName);
-        } catch (ClientException $e) {
-            $this->logger->debug('Elasticsearch index not available', [
-                'error' => $e->getMessage(),
-            ]);
-
+        } catch (\Exception $e) {
+            // Silently fail - Elasticsearch is not available
             return;
         }
 
@@ -118,7 +112,7 @@ class SearchIndexer
         try {
             $index->addDocument($document);
             $index->refresh();
-        } catch (ClientException $e) {
+        } catch (\Exception $e) {
             $this->logger->error('Elasticsearch indexing failed for note', [
                 'error' => $e->getMessage(),
                 'type' => $e::class,
@@ -142,11 +136,8 @@ class SearchIndexer
         try {
             $this->createIndex();
             $index = $this->getClient()->getIndex($this->indexName);
-        } catch (ClientException $e) {
-            $this->logger->debug('Elasticsearch index not available', [
-                'error' => $e->getMessage(),
-            ]);
-
+        } catch (\Exception $e) {
+            // Silently fail - Elasticsearch is not available
             return;
         }
 
@@ -166,7 +157,7 @@ class SearchIndexer
         try {
             $index->addDocument($document);
             $index->refresh();
-        } catch (ClientException $e) {
+        } catch (\Exception $e) {
             $this->logger->error('Elasticsearch indexing failed for task', [
                 'error' => $e->getMessage(),
                 'type' => $e::class,
@@ -189,18 +180,15 @@ class SearchIndexer
     {
         try {
             $index = $this->getClient()->getIndex($this->indexName);
-        } catch (ClientException $e) {
-            $this->logger->debug('Elasticsearch index not available', [
-                'error' => $e->getMessage(),
-            ]);
-
+        } catch (\Exception $e) {
+            // Silently fail - Elasticsearch is not available
             return;
         }
 
         try {
             $index->deleteById('task_'.$task->getId());
             $index->refresh();
-        } catch (ClientException $e) {
+        } catch (\Exception $e) {
             $this->logger->error('Elasticsearch delete failed for task', [
                 'error' => $e->getMessage(),
                 'type' => $e::class,
@@ -223,18 +211,15 @@ class SearchIndexer
     {
         try {
             $index = $this->getClient()->getIndex($this->indexName);
-        } catch (ClientException $e) {
-            $this->logger->debug('Elasticsearch index not available', [
-                'error' => $e->getMessage(),
-            ]);
-
+        } catch (\Exception $e) {
+            // Silently fail - Elasticsearch is not available
             return;
         }
 
         try {
             $index->deleteById('note_'.$note->getId());
             $index->refresh();
-        } catch (ClientException $e) {
+        } catch (\Exception $e) {
             $this->logger->error('Elasticsearch delete failed for note', [
                 'error' => $e->getMessage(),
                 'type' => $e::class,
