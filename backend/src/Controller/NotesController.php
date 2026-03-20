@@ -10,6 +10,7 @@ use App\Entity\Note;
 use App\Entity\Tag;
 use App\Entity\User;
 use App\Service\EncryptionService;
+use App\Service\Search\SearchIndexer;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -24,15 +25,18 @@ class NotesController extends AbstractController
     private EntityManagerInterface $entityManager;
     private ValidatorInterface $validator;
     private EncryptionService $encryptionService;
+    private SearchIndexer $searchIndexer;
 
     public function __construct(
         EntityManagerInterface $entityManager,
         ValidatorInterface $validator,
         EncryptionService $encryptionService,
+        SearchIndexer $searchIndexer,
     ) {
         $this->entityManager = $entityManager;
         $this->validator = $validator;
         $this->encryptionService = $encryptionService;
+        $this->searchIndexer = $searchIndexer;
     }
 
     #[Route('/', name: 'get', methods: ['GET'])]
@@ -158,6 +162,8 @@ class NotesController extends AbstractController
         $this->entityManager->persist($note);
         $this->entityManager->flush();
 
+        $this->searchIndexer->indexNote($note);
+
         return new JsonResponse([
             'message' => 'Note created',
             'id' => $note->getId(),
@@ -227,6 +233,8 @@ class NotesController extends AbstractController
         $this->entityManager->persist($note);
         $this->entityManager->flush();
 
+        $this->searchIndexer->indexNote($note);
+
         return new JsonResponse([
             'message' => 'Note updated',
         ], Response::HTTP_OK);
@@ -256,6 +264,8 @@ class NotesController extends AbstractController
                 'error' => 'Forbidden',
             ], Response::HTTP_FORBIDDEN);
         }
+
+        $this->searchIndexer->deleteNote($note);
 
         $this->entityManager->remove($note);
         $this->entityManager->flush();

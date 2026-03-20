@@ -12,6 +12,7 @@ use App\Enum\TaskPriority;
 use App\Enum\TaskStatus;
 use App\Repository\TaskRepository;
 use App\Service\EncryptionService;
+use App\Service\Search\SearchIndexer;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -27,17 +28,20 @@ class TaskController extends AbstractController
     private EncryptionService $encryptionService;
     private TaskRepository $taskRepository;
     private ValidatorInterface $validator;
+    private SearchIndexer $searchIndexer;
 
     public function __construct(
         EntityManagerInterface $entityManager,
         EncryptionService $encryptionService,
         TaskRepository $taskRepository,
         ValidatorInterface $validator,
+        SearchIndexer $searchIndexer,
     ) {
         $this->entityManager = $entityManager;
         $this->encryptionService = $encryptionService;
         $this->taskRepository = $taskRepository;
         $this->validator = $validator;
+        $this->searchIndexer = $searchIndexer;
     }
 
     #[Route('/', name: 'get', methods: ['GET'])]
@@ -116,6 +120,8 @@ class TaskController extends AbstractController
 
         $this->entityManager->persist($task);
         $this->entityManager->flush();
+
+        $this->searchIndexer->indexTask($task);
 
         return new JsonResponse($this->serializeTask($task), Response::HTTP_CREATED);
     }
@@ -199,6 +205,8 @@ class TaskController extends AbstractController
         $this->entityManager->persist($task);
         $this->entityManager->flush();
 
+        $this->searchIndexer->indexTask($task);
+
         return new JsonResponse($this->serializeTask($task), Response::HTTP_OK);
     }
 
@@ -220,6 +228,8 @@ class TaskController extends AbstractController
         if ($task->getAuthor()?->getId() !== $user->getId()) {
             return new JsonResponse(['error' => 'Forbidden'], Response::HTTP_FORBIDDEN);
         }
+
+        $this->searchIndexer->deleteTask($task);
 
         $this->entityManager->remove($task);
         $this->entityManager->flush();
@@ -260,6 +270,8 @@ class TaskController extends AbstractController
 
         $this->entityManager->persist($task);
         $this->entityManager->flush();
+
+        $this->searchIndexer->indexTask($task);
 
         return new JsonResponse($this->serializeTask($task), Response::HTTP_CREATED);
     }
