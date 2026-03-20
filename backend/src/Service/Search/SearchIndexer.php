@@ -6,11 +6,9 @@ namespace App\Service\Search;
 
 use App\Entity\Note;
 use App\Entity\Task;
-use Elastic\Elasticsearch\Exception\ClientResponseException;
-use Elastic\Elasticsearch\Exception\MissingParameterException;
-use Elastic\Elasticsearch\Exception\ServerResponseException;
 use Elastica\Client;
 use Elastica\Document;
+use Elastica\Exception\ClientException;
 use Psr\Log\LoggerInterface;
 
 class SearchIndexer
@@ -105,7 +103,7 @@ class SearchIndexer
         try {
             $index->addDocument($document);
             $index->refresh();
-        } catch (MissingParameterException|ClientResponseException|ServerResponseException $e) {
+        } catch (ClientException $e) {
             $this->logger->error('Elasticsearch indexing failed for note', [
                 'error' => $e->getMessage(),
                 'type' => $e::class,
@@ -145,7 +143,7 @@ class SearchIndexer
         try {
             $index->addDocument($document);
             $index->refresh();
-        } catch (MissingParameterException|ClientResponseException|ServerResponseException $e) {
+        } catch (ClientException $e) {
             $this->logger->error('Elasticsearch indexing failed for task', [
                 'error' => $e->getMessage(),
                 'type' => $e::class,
@@ -171,7 +169,7 @@ class SearchIndexer
         try {
             $index->deleteById('task_'.$task->getId());
             $index->refresh();
-        } catch (MissingParameterException|ClientResponseException|ServerResponseException $e) {
+        } catch (ClientException $e) {
             $this->logger->error('Elasticsearch delete failed for task', [
                 'error' => $e->getMessage(),
                 'type' => $e::class,
@@ -197,7 +195,7 @@ class SearchIndexer
         try {
             $index->deleteById('note_'.$note->getId());
             $index->refresh();
-        } catch (MissingParameterException|ClientResponseException|ServerResponseException $e) {
+        } catch (ClientException $e) {
             $this->logger->error('Elasticsearch delete failed for note', [
                 'error' => $e->getMessage(),
                 'type' => $e::class,
