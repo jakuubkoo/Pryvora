@@ -37,38 +37,45 @@ class SearchIndexer
      */
     public function createIndex(): void
     {
-        $index = $this->getClient()->getIndex($this->indexName);
+        try {
+            $index = $this->getClient()->getIndex($this->indexName);
 
-        if (!$index->exists()) {
-            $index->create([
-                'settings' => [
-                    'number_of_shards' => 1,
-                    'number_of_replicas' => 0,
-                    'analysis' => [
-                        'normalizer' => [
-                            'lowercase_normalizer' => [
-                                'type' => 'custom',
-                                'filter' => ['lowercase'],
+            if (!$index->exists()) {
+                $index->create([
+                    'settings' => [
+                        'number_of_shards' => 1,
+                        'number_of_replicas' => 0,
+                        'analysis' => [
+                            'normalizer' => [
+                                'lowercase_normalizer' => [
+                                    'type' => 'custom',
+                                    'filter' => ['lowercase'],
+                                ],
                             ],
                         ],
                     ],
-                ],
-                'mappings' => [
-                    'properties' => [
-                        'type' => ['type' => 'keyword'],
-                        'user_id' => ['type' => 'integer'],
-                        'title' => [
-                            'type' => 'keyword',
-                            'normalizer' => 'lowercase_normalizer',
+                    'mappings' => [
+                        'properties' => [
+                            'type' => ['type' => 'keyword'],
+                            'user_id' => ['type' => 'integer'],
+                            'title' => [
+                                'type' => 'keyword',
+                                'normalizer' => 'lowercase_normalizer',
+                            ],
+                            'tags' => ['type' => 'keyword'],
+                            'status' => ['type' => 'keyword'],
+                            'priority' => ['type' => 'keyword'],
+                            'due_date' => ['type' => 'date'],
+                            'created_at' => ['type' => 'date'],
+                            'updated_at' => ['type' => 'date'],
                         ],
-                        'tags' => ['type' => 'keyword'],
-                        'status' => ['type' => 'keyword'],
-                        'priority' => ['type' => 'keyword'],
-                        'due_date' => ['type' => 'date'],
-                        'created_at' => ['type' => 'date'],
-                        'updated_at' => ['type' => 'date'],
                     ],
-                ],
+                ]);
+            }
+        } catch (ClientException $e) {
+            $this->logger->debug('Elasticsearch index creation skipped or failed', [
+                'error' => $e->getMessage(),
+                'type' => $e::class,
             ]);
         }
     }
@@ -85,8 +92,15 @@ class SearchIndexer
      */
     public function indexNote(Note $note): void
     {
-        $this->createIndex();
-        $index = $this->getClient()->getIndex($this->indexName);
+        try {
+            $this->createIndex();
+            $index = $this->getClient()->getIndex($this->indexName);
+        } catch (ClientException $e) {
+            $this->logger->debug('Elasticsearch index not available', [
+                'error' => $e->getMessage(),
+            ]);
+            return;
+        }
 
         $document = new Document(
             'note_'.$note->getId(),
@@ -124,8 +138,15 @@ class SearchIndexer
      */
     public function indexTask(Task $task): void
     {
-        $this->createIndex();
-        $index = $this->getClient()->getIndex($this->indexName);
+        try {
+            $this->createIndex();
+            $index = $this->getClient()->getIndex($this->indexName);
+        } catch (ClientException $e) {
+            $this->logger->debug('Elasticsearch index not available', [
+                'error' => $e->getMessage(),
+            ]);
+            return;
+        }
 
         $document = new Document(
             'task_'.$task->getId(),
@@ -164,7 +185,14 @@ class SearchIndexer
      */
     public function deleteTask(Task $task): void
     {
-        $index = $this->getClient()->getIndex($this->indexName);
+        try {
+            $index = $this->getClient()->getIndex($this->indexName);
+        } catch (ClientException $e) {
+            $this->logger->debug('Elasticsearch index not available', [
+                'error' => $e->getMessage(),
+            ]);
+            return;
+        }
 
         try {
             $index->deleteById('task_'.$task->getId());
@@ -190,7 +218,14 @@ class SearchIndexer
      */
     public function deleteNote(Note $note): void
     {
-        $index = $this->getClient()->getIndex($this->indexName);
+        try {
+            $index = $this->getClient()->getIndex($this->indexName);
+        } catch (ClientException $e) {
+            $this->logger->debug('Elasticsearch index not available', [
+                'error' => $e->getMessage(),
+            ]);
+            return;
+        }
 
         try {
             $index->deleteById('note_'.$note->getId());

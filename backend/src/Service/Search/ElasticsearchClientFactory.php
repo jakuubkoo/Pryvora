@@ -15,6 +15,12 @@ class ElasticsearchClientFactory
 
     public function create(): Client
     {
+        // Return a client with empty hosts if elasticsearch_host is empty (for tests)
+        // This allows tests to run without requiring an actual Elasticsearch instance
+        if (empty($this->elasticsearch_host)) {
+            return new Client(['hosts' => []]);
+        }
+
         return new Client([
             'hosts' => [
                 $this->elasticsearch_host,

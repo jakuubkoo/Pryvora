@@ -76,6 +76,8 @@ jobs:
           echo "JWT_PASSPHRASE=test_passphrase" >> .env.test
           echo "PRYVORA_ENCRYPTION_KEY=test_encryption_key_32_chars_long!!" >> .env.test
           echo "COOKIE_SECURE=0" >> .env.test
+          echo "ELASTICSEARCH_HOST=http://localhost:9200" >> .env.test
+          echo "ELASTICSEARCH_INDEX_NAME=pryvora_test" >> .env.test
 
       - name: Generate JWT keys
         run: |

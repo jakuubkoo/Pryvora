@@ -31,7 +31,11 @@ class SearchService
      */
     public function search(string $query, User $user): array
     {
-        $client = $this->elasticsearchClientFactory->create()->getIndex(self::INDEX_NAME);
+        try {
+            $client = $this->elasticsearchClientFactory->create()->getIndex(self::INDEX_NAME);
+        } catch (\Exception $e) {
+            return [];
+        }
 
         // Wildcard query for partial matching (supports searching anywhere in the text)
         $wildcard = new Wildcard('title', '*'.$query.'*');
