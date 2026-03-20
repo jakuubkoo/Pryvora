@@ -19,6 +19,9 @@ class NoteRepository extends ServiceEntityRepository
         parent::__construct($registry, Note::class);
     }
 
+    /**
+     * @return array<Note>
+     */
     public function findByUser(User $user): array
     {
         return $this->createQueryBuilder('n')
@@ -30,6 +33,9 @@ class NoteRepository extends ServiceEntityRepository
         ;
     }
 
+    /**
+     * @return array<Note>
+     */
     public function findLastFiveByUser(User $user): array
     {
         return $this->createQueryBuilder('n')
