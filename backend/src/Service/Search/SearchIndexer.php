@@ -99,6 +99,7 @@ class SearchIndexer
             $this->logger->debug('Elasticsearch index not available', [
                 'error' => $e->getMessage(),
             ]);
+
             return;
         }
 
@@ -145,6 +146,7 @@ class SearchIndexer
             $this->logger->debug('Elasticsearch index not available', [
                 'error' => $e->getMessage(),
             ]);
+
             return;
         }
 
@@ -191,6 +193,7 @@ class SearchIndexer
             $this->logger->debug('Elasticsearch index not available', [
                 'error' => $e->getMessage(),
             ]);
+
             return;
         }
 
@@ -224,6 +227,7 @@ class SearchIndexer
             $this->logger->debug('Elasticsearch index not available', [
                 'error' => $e->getMessage(),
             ]);
+
             return;
         }
 
