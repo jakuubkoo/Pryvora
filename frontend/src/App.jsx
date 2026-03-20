@@ -16,7 +16,7 @@ function App()
   if (loading)
   {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a]">
+      <div className="min-h-screen flex items-center justify-center bg-[#0f0f0f]">
         <div className="text-[#888888]">Loading...</div>
       </div>
     )

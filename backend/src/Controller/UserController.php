@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Entity\User;
+use App\Service\EncryptionService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
@@ -18,6 +19,7 @@ class UserController extends AbstractController
     public function __construct(
         private readonly UserPasswordHasherInterface $userPasswordHasher,
         private readonly EntityManagerInterface $entityManager,
+        private readonly EncryptionService $encryptionService,
     ) {
     }
 
@@ -32,6 +34,7 @@ class UserController extends AbstractController
 
         return $this->json([
             'id' => $user->getId(),
+            'first_name' => $user->getFirstName() ? $this->encryptionService->decrypt($user->getFirstName()) : '',
             'email' => $user->getEmail(),
             'two_factor_enabled' => $user->isTwoFactorEnabled(),
         ]);

@@ -227,6 +227,43 @@ class TaskController extends AbstractController
         return new JsonResponse(['message' => 'Task deleted'], Response::HTTP_NO_CONTENT);
     }
 
+    #[Route('/quickAdd', name: 'quick_add', methods: ['POST'])]
+    public function quickAdd(Request $request): JsonResponse
+    {
+        $user = $this->getUser();
+
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+        }
+
+        $data = json_decode($request->getContent(), true) ?? [];
+
+        $dto = CreateTaskDTO::fromArray($data);
+
+        $errors = $this->validator->validate($dto);
+
+        if (\count($errors) > 0) {
+            $messages = [];
+            foreach ($errors as $error) {
+                $messages[$error->getPropertyPath()] = $error->getMessage();
+            }
+
+            return new JsonResponse(['errors' => $messages], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $task = new Task();
+        $task->setTitle($dto->title);
+        $task->setStatus(TaskStatus::TODO);
+        $task->setAuthor($user);
+        $task->setPriority(TaskPriority::MEDIUM);
+        $task->setDueDate(new \DateTimeImmutable('today'));
+
+        $this->entityManager->persist($task);
+        $this->entityManager->flush();
+
+        return new JsonResponse($this->serializeTask($task), Response::HTTP_CREATED);
+    }
+
     /**
      * Serializes a Task entity into an array.
      *
