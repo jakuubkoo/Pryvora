@@ -438,25 +438,6 @@ export default function Dashboard()
                   Today
                 </h2>
 
-                {/* Quick Add Input */}
-                <form onSubmit={handle_quick_add_task}>
-                  <div className="flex items-center gap-3 px-4 py-3 rounded-lg border border-white/8 bg-[#1a1a1a] hover:border-white/15 hover:bg-[#222222] transition-all duration-150 group">
-                    <PlusIcon className="w-4 h-4 text-[#888888] group-hover:text-[#e5e5e5] transition-colors flex-shrink-0"/>
-                    <Input
-                      type="text"
-                      placeholder="Add a task for today..."
-                      value={quick_task_title}
-                      onChange={(e) => set_quick_task_title(e.target.value)}
-                      disabled={adding_task}
-                      className={cn(
-                        'border-0 bg-transparent text-[#e5e5e5] placeholder:text-[#666666] p-0 h-auto',
-                        'focus-visible:ring-0 focus-visible:ring-offset-0',
-                        'transition-all duration-200'
-                      )}
-                    />
-                  </div>
-                </form>
-
                 {dashboard_data?.tasks?.today?.length > 0 ? (
                   <div className="space-y-2">
                     {dashboard_data.tasks.today.map(task => (
