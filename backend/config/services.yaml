@@ -41,11 +41,11 @@ when@test:
             autowire: true
             autoconfigure: true
 
-        # Mock Elasticsearch services for tests to avoid requiring actual Elasticsearch instance
+        # Use empty host for tests - ElasticsearchClientFactory will handle this gracefully
         App\Service\Search\ElasticsearchClientFactory:
             arguments:
-                $elasticsearch_host: '%env(default::ELASTICSEARCH_HOST)%'
+                $elasticsearch_host: ''
 
         App\Service\Search\SearchIndexer:
             arguments:
-                $indexName: '%env(default:pryvora_test:ELASTICSEARCH_INDEX_NAME)%'
+                $indexName: 'pryvora_test'
