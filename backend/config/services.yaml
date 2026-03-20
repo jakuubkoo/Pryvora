@@ -28,7 +28,11 @@ services:
 
     App\Service\Search\ElasticsearchClientFactory:
         arguments:
-            $elasticsearchUrl: '%env(ELASTICSEARCH_HOST)%'
+            $elasticsearch_host: '%env(ELASTICSEARCH_HOST)%'
+
+    App\Service\Search\SearchIndexer:
+        arguments:
+            $indexName: '%env(ELASTICSEARCH_INDEX_NAME)%'
 
 when@test:
     services:

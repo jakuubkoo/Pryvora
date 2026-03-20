@@ -31,6 +31,11 @@ class SearchReindexCommand extends Command
     {
         $io = new SymfonyStyle($input, $output);
 
+        // Create index if not exists
+        $io->section('Creating index...');
+        $this->searchIndexer->createIndex();
+        $io->success('Index ready.');
+
         $notes = $this->noteRepository->findAll();
         $io->section('Indexing notes...');
         foreach ($notes as $note) {

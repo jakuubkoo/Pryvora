@@ -9,12 +9,16 @@ use Elastica\Client;
 class ElasticsearchClientFactory
 {
     public function __construct(
-        private readonly string $elasticsearchUrl,
+        private readonly string $elasticsearch_host,
     ) {
     }
 
     public function create(): Client
     {
-        return new Client($this->elasticsearchUrl);
+        return new Client([
+            'hosts' => [
+                $this->elasticsearch_host,
+            ],
+        ]);
     }
 }

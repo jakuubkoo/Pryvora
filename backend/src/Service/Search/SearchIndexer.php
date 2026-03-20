@@ -11,21 +11,68 @@ use Elastic\Elasticsearch\Exception\MissingParameterException;
 use Elastic\Elasticsearch\Exception\ServerResponseException;
 use Elastica\Client;
 use Elastica\Document;
+use Psr\Log\LoggerInterface;
 
 class SearchIndexer
 {
-    private const INDEX_NAME = 'pryvora_search';
-
     private ElasticsearchClientFactory $elasticsearchClientFactory;
+    private LoggerInterface $logger;
+    private string $indexName;
 
-    public function __construct(ElasticsearchClientFactory $elasticsearchClientFactory)
-    {
+    public function __construct(
+        ElasticsearchClientFactory $elasticsearchClientFactory,
+        LoggerInterface $logger,
+        string $indexName = 'pryvora_search',
+    ) {
         $this->elasticsearchClientFactory = $elasticsearchClientFactory;
+        $this->logger = $logger;
+        $this->indexName = $indexName;
     }
 
     private function getClient(): Client
     {
         return $this->elasticsearchClientFactory->create();
+    }
+
+    /**
+     * Creates or updates the search index with the proper mapping.
+     */
+    public function createIndex(): void
+    {
+        $index = $this->getClient()->getIndex($this->indexName);
+
+        if (!$index->exists()) {
+            $index->create([
+                'settings' => [
+                    'number_of_shards' => 1,
+                    'number_of_replicas' => 0,
+                    'analysis' => [
+                        'normalizer' => [
+                            'lowercase_normalizer' => [
+                                'type' => 'custom',
+                                'filter' => ['lowercase'],
+                            ],
+                        ],
+                    ],
+                ],
+                'mappings' => [
+                    'properties' => [
+                        'type' => ['type' => 'keyword'],
+                        'user_id' => ['type' => 'integer'],
+                        'title' => [
+                            'type' => 'keyword',
+                            'normalizer' => 'lowercase_normalizer',
+                        ],
+                        'tags' => ['type' => 'keyword'],
+                        'status' => ['type' => 'keyword'],
+                        'priority' => ['type' => 'keyword'],
+                        'due_date' => ['type' => 'date'],
+                        'created_at' => ['type' => 'date'],
+                        'updated_at' => ['type' => 'date'],
+                    ],
+                ],
+            ]);
+        }
     }
 
     /**
@@ -40,7 +87,8 @@ class SearchIndexer
      */
     public function indexNote(Note $note): void
     {
-        $index = $this->getClient()->getIndex(self::INDEX_NAME);
+        $this->createIndex();
+        $index = $this->getClient()->getIndex($this->indexName);
 
         $document = new Document(
             'note_'.$note->getId(),
@@ -49,8 +97,8 @@ class SearchIndexer
                 'user_id' => $note->getUser()?->getId(),
                 'title' => $note->getTitle(),
                 'tags' => $note->getTags()->map(static fn ($tag) => $tag->getName())->toArray(),
-                'created_at' => $note->getCreatedAt(),
-                'updated_at' => $note->getUpdatedAt(),
+                'created_at' => $note->getCreatedAt()->format(\DateTimeInterface::ATOM),
+                'updated_at' => $note->getUpdatedAt()?->format(\DateTimeInterface::ATOM),
             ]
         );
 
@@ -58,7 +106,11 @@ class SearchIndexer
             $index->addDocument($document);
             $index->refresh();
         } catch (MissingParameterException|ClientResponseException|ServerResponseException $e) {
-            // Log the error
+            $this->logger->error('Elasticsearch indexing failed for note', [
+                'error' => $e->getMessage(),
+                'type' => $e::class,
+                'note_id' => $note->getId(),
+            ]);
         }
     }
 
@@ -74,7 +126,8 @@ class SearchIndexer
      */
     public function indexTask(Task $task): void
     {
-        $index = $this->getClient()->getIndex(self::INDEX_NAME);
+        $this->createIndex();
+        $index = $this->getClient()->getIndex($this->indexName);
 
         $document = new Document(
             'task_'.$task->getId(),
@@ -84,8 +137,8 @@ class SearchIndexer
                 'title' => $task->getTitle(),
                 'status' => $task->getStatus()->value,
                 'priority' => $task->getPriority()->value,
-                'due_date' => $task->getDueDate(),
-                'created_at' => $task->getCreatedAt(),
+                'due_date' => $task->getDueDate()?->format(\DateTimeInterface::ATOM),
+                'created_at' => $task->getCreatedAt()?->format(\DateTimeInterface::ATOM),
             ]
         );
 
@@ -93,7 +146,11 @@ class SearchIndexer
             $index->addDocument($document);
             $index->refresh();
         } catch (MissingParameterException|ClientResponseException|ServerResponseException $e) {
-            // Log the error
+            $this->logger->error('Elasticsearch indexing failed for task', [
+                'error' => $e->getMessage(),
+                'type' => $e::class,
+                'task_id' => $task->getId(),
+            ]);
         }
     }
 
@@ -109,13 +166,17 @@ class SearchIndexer
      */
     public function deleteTask(Task $task): void
     {
-        $index = $this->getClient()->getIndex(self::INDEX_NAME);
+        $index = $this->getClient()->getIndex($this->indexName);
 
         try {
             $index->deleteById('task_'.$task->getId());
             $index->refresh();
         } catch (MissingParameterException|ClientResponseException|ServerResponseException $e) {
-            // Log the error
+            $this->logger->error('Elasticsearch delete failed for task', [
+                'error' => $e->getMessage(),
+                'type' => $e::class,
+                'task_id' => $task->getId(),
+            ]);
         }
     }
 
@@ -131,13 +192,17 @@ class SearchIndexer
      */
     public function deleteNote(Note $note): void
     {
-        $index = $this->getClient()->getIndex(self::INDEX_NAME);
+        $index = $this->getClient()->getIndex($this->indexName);
 
         try {
             $index->deleteById('note_'.$note->getId());
             $index->refresh();
         } catch (MissingParameterException|ClientResponseException|ServerResponseException $e) {
-            // Log the error
+            $this->logger->error('Elasticsearch delete failed for note', [
+                'error' => $e->getMessage(),
+                'type' => $e::class,
+                'note_id' => $note->getId(),
+            ]);
         }
     }
 }
