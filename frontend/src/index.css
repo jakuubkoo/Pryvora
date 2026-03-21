@@ -1,3 +1,6 @@
+/* Font Definitions - MUST be first */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@600;700;800&display=swap');
+
 @import "tailwindcss";
 
 @custom-variant dark (&:is(.dark *));
@@ -56,8 +59,21 @@
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
-    font-family: system-ui, -apple-system, sans-serif;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
     margin: 0;
+  }
+  
+  /* Font Classes */
+  .font-headline {
+    font-family: 'Manrope', system-ui, -apple-system, sans-serif;
+  }
+  
+  .font-body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+  
+  .font-label {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
   }
 }
 
@@ -110,6 +126,36 @@
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #3a3a3a;
+}
+
+/* Obsidian Background Gradient */
+.obsidian-bg {
+  background: radial-gradient(circle at top right, #1c1b1b 0%, #131313 100%);
+}
+
+/* Glass Card Effect */
+.glass-card {
+  background: rgba(42, 42, 42, 0.4);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Primary Glow Button */
+.primary-glow-btn {
+  background: linear-gradient(135deg, #818cf8 0%, #bdc2ff 100%);
+  box-shadow: 0 4px 20px rgba(129, 140, 248, 0.4);
+  transition: all 0.2s ease;
+}
+
+.primary-glow-btn:hover {
+  box-shadow: 0 6px 24px rgba(129, 140, 248, 0.5);
+  transform: translateY(-1px);
+}
+
+.primary-glow-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 12px rgba(129, 140, 248, 0.3);
 }
 
 /* Respect reduced motion preferences */
