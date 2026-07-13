@@ -7,9 +7,6 @@ namespace App\Tests\Repository;
 use App\Entity\CalendarEvent;
 use App\Entity\User;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
-use Symfony\Bundle\FrameworkBundle\Console\Application;
-use Symfony\Component\Console\Input\ArrayInput;
-use Symfony\Component\Console\Output\NullOutput;
 
 class CalendarEventRepositoryTest extends KernelTestCase
 {
@@ -25,32 +22,10 @@ class CalendarEventRepositoryTest extends KernelTestCase
     {
         parent::setUp();
         self::bootKernel();
-        
-        // Ensure database is migrated
-        $application = new Application(self::bootKernel());
-        $application->setAutoExit(false);
-        
-        $application->run(new ArrayInput([
-            'command' => 'doctrine:database:drop',
-            '--if-exists' => true,
-            '--force' => true,
-            '--env' => 'test',
-            '--quiet' => true,
-        ]), new NullOutput());
-        
-        $application->run(new ArrayInput([
-            'command' => 'doctrine:database:create',
-            '--if-not-exists' => true,
-            '--env' => 'test',
-            '--quiet' => true,
-        ]), new NullOutput());
-        
-        $application->run(new ArrayInput([
-            'command' => 'doctrine:migrations:migrate',
-            '--no-interaction' => true,
-            '--env' => 'test',
-            '--quiet' => true,
-        ]), new NullOutput());
+
+        // The schema is created once in tests/bootstrap.php, and DAMA rolls each
+        // test back afterwards. Dropping and recreating the database here would
+        // abort the transaction DAMA has already opened.
     }
 
     private function createUser(string $email): User

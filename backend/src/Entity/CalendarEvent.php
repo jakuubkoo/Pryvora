@@ -9,6 +9,7 @@ use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: CalendarEventRepository::class)]
+#[ORM\UniqueConstraint(name: 'uniq_calendar_event_account_external_uid', columns: ['connected_account_id', 'external_uid'])]
 class CalendarEvent
 {
     #[ORM\Id]
@@ -46,6 +47,22 @@ class CalendarEvent
 
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $updatedAt = null;
+
+    #[ORM\ManyToOne]
+    #[ORM\JoinColumn(nullable: true, onDelete: 'CASCADE')]
+    private ?ConnectedAccount $connectedAccount = null;
+
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $externalUid = null;
+
+    #[ORM\Column(length: 512, nullable: true)]
+    private ?string $externalHref = null;
+
+    #[ORM\Column(length: 255, nullable: true)]
+    private ?string $externalEtag = null;
+
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $lastSyncedAt = null;
 
     public function getId(): ?int
     {
@@ -166,5 +183,65 @@ class CalendarEvent
     public function setUpdatedAt(?\DateTimeImmutable $updatedAt): void
     {
         $this->updatedAt = $updatedAt;
+    }
+
+    public function getConnectedAccount(): ?ConnectedAccount
+    {
+        return $this->connectedAccount;
+    }
+
+    public function setConnectedAccount(?ConnectedAccount $connectedAccount): static
+    {
+        $this->connectedAccount = $connectedAccount;
+
+        return $this;
+    }
+
+    public function getExternalUid(): ?string
+    {
+        return $this->externalUid;
+    }
+
+    public function setExternalUid(?string $externalUid): static
+    {
+        $this->externalUid = $externalUid;
+
+        return $this;
+    }
+
+    public function getExternalHref(): ?string
+    {
+        return $this->externalHref;
+    }
+
+    public function setExternalHref(?string $externalHref): static
+    {
+        $this->externalHref = $externalHref;
+
+        return $this;
+    }
+
+    public function getExternalEtag(): ?string
+    {
+        return $this->externalEtag;
+    }
+
+    public function setExternalEtag(?string $externalEtag): static
+    {
+        $this->externalEtag = $externalEtag;
+
+        return $this;
+    }
+
+    public function getLastSyncedAt(): ?\DateTimeImmutable
+    {
+        return $this->lastSyncedAt;
+    }
+
+    public function setLastSyncedAt(?\DateTimeImmutable $lastSyncedAt): static
+    {
+        $this->lastSyncedAt = $lastSyncedAt;
+
+        return $this;
     }
 }

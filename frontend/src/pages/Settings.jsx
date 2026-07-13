@@ -18,6 +18,7 @@ import {
   TriangleAlert,
 } from 'lucide-react'
 import AppLayout from '@/components/layout/AppLayout'
+import IntegrationsSection from '@/components/settings/IntegrationsSection'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -642,6 +643,17 @@ export default function Settings()
                   {password_loading ? 'Changing password...' : 'Change password'}
                 </Button>
               </form>
+            </SectionCard>
+
+            {/* Integrations */}
+            <SectionCard
+              eyebrow="Integrations"
+              title="Connected accounts"
+              description="Bring your calendar in. Credentials are encrypted on your server and never leave it."
+              delay={0.12}
+              reduce_motion={reduce_motion}
+            >
+              <IntegrationsSection />
             </SectionCard>
           </div>
 

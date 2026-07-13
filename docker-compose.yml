@@ -36,6 +36,53 @@ services:
     networks:
       - pryvora_network
 
+  worker:
+    build:
+      context: .
+      dockerfile: infra/docker/backend/Dockerfile.dev
+    container_name: pryvora_worker
+    # Overrides bootstrap.sh so the worker does not race the backend on migrations.
+    command: sh -c "until php bin/console dbal:run-sql 'SELECT 1' >/dev/null 2>&1; do sleep 3; done; php bin/console messenger:consume async --time-limit=3600 --memory-limit=192M -vv"
+    restart: unless-stopped
+    volumes:
+      - ./backend:/var/www/html
+      - backend_vendor:/var/www/html/vendor
+      - backend_var:/var/www/html/var
+    environment:
+      APP_ENV: dev
+      APP_SECRET: dev_secret_change_in_production
+    depends_on:
+      db:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    networks:
+      - pryvora_network
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: infra/docker/backend/Dockerfile.dev
+    container_name: pryvora_scheduler
+    # There is no cron in the image and no Redis in this stack, so a plain loop
+    # is the simplest 15-minute tick. It only enqueues; the worker does the work.
+    command: sh -c "until php bin/console dbal:run-sql 'SELECT 1' >/dev/null 2>&1; do sleep 3; done; while true; do php bin/console app:integrations:sync || true; sleep 900; done"
+    restart: unless-stopped
+    volumes:
+      - ./backend:/var/www/html
+      - backend_vendor:/var/www/html/vendor
+      - backend_var:/var/www/html/var
+    environment:
+      APP_ENV: dev
+      APP_SECRET: dev_secret_change_in_production
+    depends_on:
+      db:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    networks:
+      - pryvora_network
+
   db:
     image: postgres:16-alpine
     container_name: pryvora_db
