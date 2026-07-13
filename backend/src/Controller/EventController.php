@@ -8,6 +8,7 @@ use App\DTO\CreateEventDTO;
 use App\DTO\UpdateEventDTO;
 use App\Entity\CalendarEvent;
 use App\Entity\User;
+use App\Integration\CalendarWriteBack;
 use App\Repository\CalendarEventRepository;
 use App\Service\EncryptionService;
 use Doctrine\ORM\EntityManagerInterface;
@@ -26,6 +27,7 @@ class EventController extends AbstractController
         private readonly EntityManagerInterface $entityManager,
         private readonly ValidatorInterface $validator,
         private readonly EncryptionService $encryptionService,
+        private readonly CalendarWriteBack $calendarWriteBack,
     ) {
     }
 
@@ -110,8 +112,12 @@ class EventController extends AbstractController
             $event->setReminderAt($reminderAt);
         }
 
+        $this->calendarWriteBack->link_new_event($event);
+
         $this->entityManager->persist($event);
         $this->entityManager->flush();
+
+        $this->calendarWriteBack->queue_upsert($event);
 
         return new JsonResponse($this->serializeEvent($event), Response::HTTP_CREATED);
     }
@@ -196,6 +202,8 @@ class EventController extends AbstractController
         $this->entityManager->persist($event);
         $this->entityManager->flush();
 
+        $this->calendarWriteBack->queue_upsert($event);
+
         return new JsonResponse($this->serializeEvent($event), Response::HTTP_OK);
     }
 
@@ -218,8 +226,14 @@ class EventController extends AbstractController
             return new JsonResponse(['error' => 'Forbidden'], Response::HTTP_FORBIDDEN);
         }
 
+        // Captured before the row goes, since the handler needs the href and
+        // etag that are about to be deleted.
+        $remoteDelete = $this->calendarWriteBack->plan_delete($event);
+
         $this->entityManager->remove($event);
         $this->entityManager->flush();
+
+        $this->calendarWriteBack->dispatch_delete($remoteDelete);
 
         return new JsonResponse(['message' => 'Event deleted'], Response::HTTP_NO_CONTENT);
     }

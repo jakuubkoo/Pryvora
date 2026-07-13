@@ -23,11 +23,10 @@ doctrine:
         controller_resolver:
             auto_mapping: false
 
-when@test:
-    doctrine:
-        dbal:
-            # "TEST_TOKEN" is typically set by ParaTest
-            dbname_suffix: '_test%env(default::TEST_TOKEN)%'
+# No when@test dbname_suffix: DATABASE_URL in .env.test already names a dedicated
+# test database. A suffix makes tests/bootstrap.php migrate <db>_test through the
+# console while DAMA's static connection opens <db>, so the schema lands in a
+# database the tests never read.
 
 when@prod:
     doctrine:

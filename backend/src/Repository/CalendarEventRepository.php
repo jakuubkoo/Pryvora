@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Repository;
 
 use App\Entity\CalendarEvent;
+use App\Entity\ConnectedAccount;
 use App\Entity\User;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
@@ -54,5 +55,29 @@ class CalendarEventRepository extends ServiceEntityRepository
             ->setParameter('end', $end)
             ->getQuery()
             ->getResult();
+    }
+
+    public function findOneByAccountAndExternalUid(ConnectedAccount $account, string $externalUid): ?CalendarEvent
+    {
+        return $this->createQueryBuilder('e')
+            ->andWhere('e.connectedAccount = :account')
+            ->andWhere('e.externalUid = :uid')
+            ->setParameter('account', $account)
+            ->setParameter('uid', $externalUid)
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+    }
+
+    public function findOneByAccountAndExternalHref(ConnectedAccount $account, string $externalHref): ?CalendarEvent
+    {
+        return $this->createQueryBuilder('e')
+            ->andWhere('e.connectedAccount = :account')
+            ->andWhere('e.externalHref = :href')
+            ->setParameter('account', $account)
+            ->setParameter('href', $externalHref)
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
     }
 }

@@ -1,0 +1,435 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Tests\Controller;
+
+use App\Entity\ConnectedAccount;
+use App\Entity\User;
+use App\Enum\IntegrationStatus;
+use App\Integration\Apple\AppleCalendarProvider;
+use App\Integration\Google\GmailProvider;
+use App\Integration\OAuth\OAuthStateSigner;
+use App\Message\PushCalendarEvent;
+use App\Service\ConnectedAccountCredentials;
+use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Bundle\FrameworkBundle\KernelBrowser;
+use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+use Symfony\Component\HttpFoundation\Response;
+
+class IntegrationControllerTest extends WebTestCase
+{
+    private static string $test_password = 'TestPassword123!';
+
+    private function register_and_login_user(?KernelBrowser $client = null): array
+    {
+        $client ??= static::createClient();
+        $email = 'integration_test_' . uniqid() . '@example.com';
+
+        $client->request('POST', '/api/auth/register', [], [], ['CONTENT_TYPE' => 'application/json'], json_encode([
+            'firstName' => 'John',
+            'lastName' => 'Doe',
+            'email' => $email,
+            'password' => self::$test_password,
+            'confirmPassword' => self::$test_password,
+        ]) ?: '');
+
+        $client->request('POST', '/api/auth/login', [], [], ['CONTENT_TYPE' => 'application/json'], json_encode([
+            'email' => $email,
+            'password' => self::$test_password,
+        ]) ?: '');
+
+        $response_data = json_decode($client->getResponse()->getContent() ?: '', true);
+
+        return ['client' => $client, 'token' => $response_data['token'] ?? '', 'email' => $email];
+    }
+
+    public function test_providers_requires_authentication(): void
+    {
+        $client = static::createClient();
+        $client->request('GET', '/api/integration/providers');
+
+        $this->assertResponseStatusCodeSame(Response::HTTP_UNAUTHORIZED);
+    }
+
+    public function test_providers_lists_apple_calendar_with_its_connect_form(): void
+    {
+        $auth_data = $this->register_and_login_user();
+
+        $auth_data['client']->request('GET', '/api/integration/providers', [], [], [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $auth_data['token'],
+        ]);
+
+        $this->assertResponseIsSuccessful();
+        $providers = json_decode($auth_data['client']->getResponse()->getContent() ?: '', true);
+
+        $apple = null;
+
+        foreach ($providers as $provider) {
+            if (AppleCalendarProvider::KEY === $provider['key']) {
+                $apple = $provider;
+            }
+        }
+
+        $this->assertNotNull($apple, 'Apple Calendar provider should be registered.');
+        $this->assertNull($apple['account']);
+
+        // The connect dialog is rendered from this, so the field contract matters.
+        $field_names = array_column($apple['form'], 'name');
+        $this->assertSame(['apple_id', 'app_password'], $field_names);
+        $this->assertSame('password', $apple['form'][1]['type']);
+        $this->assertArrayHasKey('help', $apple['form'][1]);
+    }
+
+    public function test_accounts_is_empty_for_a_new_user(): void
+    {
+        $auth_data = $this->register_and_login_user();
+
+        $auth_data['client']->request('GET', '/api/integration/accounts', [], [], [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $auth_data['token'],
+        ]);
+
+        $this->assertResponseIsSuccessful();
+        $this->assertSame([], json_decode($auth_data['client']->getResponse()->getContent() ?: '', true));
+    }
+
+    public function test_connect_rejects_an_unknown_provider(): void
+    {
+        $auth_data = $this->register_and_login_user();
+
+        $auth_data['client']->request('POST', '/api/integration/accounts', [], [], [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $auth_data['token'],
+            'CONTENT_TYPE' => 'application/json',
+        ], json_encode(['provider' => 'myspace', 'credentials' => []]) ?: '');
+
+        $this->assertResponseStatusCodeSame(Response::HTTP_BAD_REQUEST);
+    }
+
+    public function test_connect_rejects_missing_credentials_at_the_form(): void
+    {
+        $auth_data = $this->register_and_login_user();
+
+        $auth_data['client']->request('POST', '/api/integration/accounts', [], [], [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $auth_data['token'],
+            'CONTENT_TYPE' => 'application/json',
+        ], json_encode(['provider' => AppleCalendarProvider::KEY, 'credentials' => ['apple_id' => '']]) ?: '');
+
+        $this->assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
+        $body = json_decode($auth_data['client']->getResponse()->getContent() ?: '', true);
+        $this->assertArrayHasKey('error', $body);
+    }
+
+    public function test_another_users_account_is_not_reachable(): void
+    {
+        $auth_data = $this->register_and_login_user();
+
+        // Nothing is connected, so any id is somebody else's or nonexistent;
+        // either way it must not leak.
+        $auth_data['client']->request('POST', '/api/integration/accounts/999999/sync', [], [], [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $auth_data['token'],
+        ]);
+
+        $this->assertResponseStatusCodeSame(Response::HTTP_NOT_FOUND);
+    }
+
+    /**
+     * Seeds a connected account directly, since connect() would hit iCloud.
+     *
+     * @return array{client: KernelBrowser, token: string, account_id: int}
+     */
+    private function seed_connected_account(?string $target = null): array
+    {
+        $auth_data = $this->register_and_login_user();
+        $container = static::getContainer();
+        $entity_manager = $container->get(EntityManagerInterface::class);
+        $credentials = $container->get(ConnectedAccountCredentials::class);
+
+        $user = $entity_manager->getRepository(User::class)->findOneBy(['email' => $auth_data['email']]);
+
+        $account = new ConnectedAccount();
+        $account->setUserOwner($user);
+        $account->setProvider(AppleCalendarProvider::KEY);
+        $account->setDisplayName($auth_data['email']);
+        $account->setStatus(IntegrationStatus::CONNECTED);
+        $account->setCreatedAt(new \DateTimeImmutable());
+        $account->setTargetCalendarHref($target);
+        $account->setSyncState([
+            'calendar_home' => 'https://caldav.icloud.com/123/calendars/',
+            'calendars' => [
+                ['href' => 'https://caldav.icloud.com/123/calendars/home/', 'display_name' => 'Home', 'sync_token' => null],
+                ['href' => 'https://caldav.icloud.com/123/calendars/work/', 'display_name' => 'Work', 'sync_token' => null],
+            ],
+        ]);
+        $credentials->write($account, ['apple_id' => $auth_data['email'], 'app_password' => 'aaaa-bbbb-cccc-dddd']);
+
+        $entity_manager->persist($account);
+        $entity_manager->flush();
+
+        return [
+            'client' => $auth_data['client'],
+            'token' => $auth_data['token'],
+            'account_id' => (int) $account->getId(),
+        ];
+    }
+
+    public function test_providers_exposes_the_discovered_calendars(): void
+    {
+        $seed = $this->seed_connected_account();
+
+        $seed['client']->request('GET', '/api/integration/providers', [], [], [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $seed['token'],
+        ]);
+
+        $this->assertResponseIsSuccessful();
+        $apple = $this->find_provider($seed['client'], AppleCalendarProvider::KEY);
+
+        $this->assertCount(2, $apple['account']['calendars']);
+        $this->assertSame('Home', $apple['account']['calendars'][0]['display_name']);
+        $this->assertNull($apple['account']['target_calendar_href']);
+    }
+
+    /**
+     * The registry is iterated in service-definition order, which is not a contract.
+     * Look providers up by key rather than by position.
+     *
+     * @return array<string, mixed>
+     */
+    private function find_provider(KernelBrowser $client, string $key): array
+    {
+        $providers = json_decode($client->getResponse()->getContent() ?: '', true);
+
+        foreach ($providers as $provider) {
+            if ($key === $provider['key']) {
+                return $provider;
+            }
+        }
+
+        $this->fail(sprintf('Provider "%s" is not registered.', $key));
+    }
+
+    public function test_apple_is_a_form_provider_and_gmail_is_an_oauth_one(): void
+    {
+        $auth_data = $this->register_and_login_user();
+
+        $auth_data['client']->request('GET', '/api/integration/providers', [], [], [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $auth_data['token'],
+        ]);
+
+        $this->assertResponseIsSuccessful();
+
+        $apple = $this->find_provider($auth_data['client'], AppleCalendarProvider::KEY);
+        $gmail = $this->find_provider($auth_data['client'], GmailProvider::KEY);
+
+        // This discriminator is the whole reason the frontend needs no per-provider
+        // knowledge: a form is typed into, an oauth provider is redirected to.
+        $this->assertSame('form', $apple['auth']);
+        $this->assertSame('oauth', $gmail['auth']);
+        $this->assertSame([], $gmail['form']);
+        $this->assertTrue($gmail['available'], 'The test env configures fake Google credentials.');
+    }
+
+    public function test_gmail_cannot_be_connected_through_the_credentials_form(): void
+    {
+        $auth_data = $this->register_and_login_user();
+
+        $auth_data['client']->request('POST', '/api/integration/accounts', [], [], [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $auth_data['token'],
+            'CONTENT_TYPE' => 'application/json',
+        ], json_encode([
+            'provider' => GmailProvider::KEY,
+            'credentials' => ['access_token' => 'a-token-i-made-up'],
+        ]) ?: '');
+
+        $this->assertResponseStatusCodeSame(Response::HTTP_BAD_REQUEST);
+    }
+
+    public function test_oauth_start_requires_authentication(): void
+    {
+        $client = static::createClient();
+        $client->request('GET', '/api/integration/oauth/' . GmailProvider::KEY . '/start');
+
+        $this->assertResponseStatusCodeSame(Response::HTTP_UNAUTHORIZED);
+    }
+
+    public function test_oauth_start_returns_a_consent_url_with_the_readonly_scope(): void
+    {
+        $auth_data = $this->register_and_login_user();
+
+        $auth_data['client']->request('GET', '/api/integration/oauth/' . GmailProvider::KEY . '/start', [], [], [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $auth_data['token'],
+        ]);
+
+        $this->assertResponseIsSuccessful();
+        $url = json_decode($auth_data['client']->getResponse()->getContent() ?: '', true)['authorization_url'];
+
+        $this->assertStringStartsWith('https://accounts.google.com/o/oauth2/v2/auth?', $url);
+
+        parse_str((string) parse_url($url, \PHP_URL_QUERY), $query);
+
+        // Read-only, and nothing but read-only.
+        $this->assertSame('https://www.googleapis.com/auth/gmail.readonly', $query['scope']);
+
+        // Without these two Google withholds the refresh token on re-consent and
+        // the integration dies at the first expiry with no way back.
+        $this->assertSame('offline', $query['access_type']);
+        $this->assertSame('consent', $query['prompt']);
+
+        $this->assertNotEmpty($query['state']);
+    }
+
+    public function test_oauth_start_rejects_a_form_provider(): void
+    {
+        $auth_data = $this->register_and_login_user();
+
+        $auth_data['client']->request('GET', '/api/integration/oauth/' . AppleCalendarProvider::KEY . '/start', [], [], [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $auth_data['token'],
+        ]);
+
+        $this->assertResponseStatusCodeSame(Response::HTTP_BAD_REQUEST);
+    }
+
+    /**
+     * The callback is public and is reached by a browser mid-redirect. A forged or
+     * stale state must land the user back on Settings with an error — never a 500,
+     * which would be both a dead end and an information leak.
+     */
+    public function test_oauth_callback_redirects_home_on_a_forged_state(): void
+    {
+        $client = static::createClient();
+        $client->request('GET', '/api/integration/oauth/callback?code=abc&state=garbage');
+
+        $this->assertResponseStatusCodeSame(Response::HTTP_FOUND);
+
+        $location = (string) $client->getResponse()->headers->get('Location');
+
+        $this->assertStringContainsString('/settings?', $location);
+        $this->assertStringContainsString('status=error', $location);
+    }
+
+    public function test_oauth_callback_reports_a_denied_consent(): void
+    {
+        $client = static::createClient();
+        $signer = static::getContainer()->get(OAuthStateSigner::class);
+
+        $client->request('GET', '/api/integration/oauth/callback?error=access_denied&state=' . urlencode($signer->sign(1, GmailProvider::KEY)));
+
+        $this->assertResponseStatusCodeSame(Response::HTTP_FOUND);
+
+        $location = (string) $client->getResponse()->headers->get('Location');
+
+        $this->assertStringContainsString('status=error', $location);
+        $this->assertStringContainsString('integration=gmail', $location);
+    }
+
+    public function test_patch_sets_the_target_calendar(): void
+    {
+        $seed = $this->seed_connected_account();
+
+        $seed['client']->request('PATCH', '/api/integration/accounts/' . $seed['account_id'], [], [], [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $seed['token'],
+            'CONTENT_TYPE' => 'application/json',
+        ], json_encode(['target_calendar_href' => 'https://caldav.icloud.com/123/calendars/work/']) ?: '');
+
+        $this->assertResponseIsSuccessful();
+        $body = json_decode($seed['client']->getResponse()->getContent() ?: '', true);
+        $this->assertSame('https://caldav.icloud.com/123/calendars/work/', $body['target_calendar_href']);
+    }
+
+    public function test_patch_rejects_a_calendar_that_is_not_ours(): void
+    {
+        $seed = $this->seed_connected_account();
+
+        $seed['client']->request('PATCH', '/api/integration/accounts/' . $seed['account_id'], [], [], [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $seed['token'],
+            'CONTENT_TYPE' => 'application/json',
+        ], json_encode(['target_calendar_href' => 'https://evil.example.com/calendars/steal/']) ?: '');
+
+        $this->assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
+    }
+
+    public function test_creating_an_event_queues_a_push_when_a_target_is_set(): void
+    {
+        $seed = $this->seed_connected_account('https://caldav.icloud.com/123/calendars/home/');
+
+        $seed['client']->request('POST', '/api/event', [], [], [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $seed['token'],
+            'CONTENT_TYPE' => 'application/json',
+        ], json_encode([
+            'title' => 'Push me',
+            'startsAt' => (new \DateTimeImmutable('+1 day'))->setTime(10, 0)->format(\DateTimeInterface::ATOM),
+            'endsAt' => (new \DateTimeImmutable('+1 day'))->setTime(11, 0)->format(\DateTimeInterface::ATOM),
+            'allDay' => false,
+        ]) ?: '');
+
+        $this->assertResponseStatusCodeSame(Response::HTTP_CREATED);
+
+        $sent = static::getContainer()->get('messenger.transport.async')->getSent();
+        $pushes = array_filter($sent, static fn ($envelope) => $envelope->getMessage() instanceof PushCalendarEvent);
+
+        $this->assertCount(1, $pushes, 'Creating an event with a target calendar must queue exactly one push.');
+    }
+
+    public function test_creating_an_event_queues_nothing_without_a_target(): void
+    {
+        // No target calendar chosen: the event stays local rather than being
+        // written to a calendar we had to guess.
+        $seed = $this->seed_connected_account();
+
+        $seed['client']->request('POST', '/api/event', [], [], [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $seed['token'],
+            'CONTENT_TYPE' => 'application/json',
+        ], json_encode([
+            'title' => 'Local only',
+            'startsAt' => (new \DateTimeImmutable('+1 day'))->setTime(10, 0)->format(\DateTimeInterface::ATOM),
+            'endsAt' => (new \DateTimeImmutable('+1 day'))->setTime(11, 0)->format(\DateTimeInterface::ATOM),
+            'allDay' => false,
+        ]) ?: '');
+
+        $this->assertResponseStatusCodeSame(Response::HTTP_CREATED);
+
+        $sent = static::getContainer()->get('messenger.transport.async')->getSent();
+        $pushes = array_filter($sent, static fn ($envelope) => $envelope->getMessage() instanceof PushCalendarEvent);
+
+        $this->assertCount(0, $pushes);
+    }
+
+    public function test_spamming_the_sync_button_is_throttled(): void
+    {
+        $seed = $this->seed_connected_account('https://caldav.icloud.com/123/calendars/home/');
+
+        $accepted = 0;
+        $throttled = 0;
+
+        for ($i = 0; $i < 8; ++$i) {
+            $seed['client']->request('POST', '/api/integration/accounts/' . $seed['account_id'] . '/sync', [], [], [
+                'HTTP_AUTHORIZATION' => 'Bearer ' . $seed['token'],
+            ]);
+
+            if (Response::HTTP_TOO_MANY_REQUESTS === $seed['client']->getResponse()->getStatusCode()) {
+                ++$throttled;
+            } else {
+                ++$accepted;
+            }
+        }
+
+        // The bucket allows a small burst, then refuses until it refills.
+        $this->assertSame(3, $accepted, 'The token bucket should accept only its burst limit.');
+        $this->assertSame(5, $throttled);
+
+        $body = json_decode($seed['client']->getResponse()->getContent() ?: '', true);
+        $this->assertArrayHasKey('retry_after', $body);
+        $this->assertGreaterThan(0, $body['retry_after']);
+        $this->assertTrue($seed['client']->getResponse()->headers->has('Retry-After'));
+    }
+
+    public function test_sync_and_disconnect_require_authentication(): void
+    {
+        $client = static::createClient();
+
+        $client->request('POST', '/api/integration/accounts/1/sync');
+        $this->assertResponseStatusCodeSame(Response::HTTP_UNAUTHORIZED);
+
+        $client->request('DELETE', '/api/integration/accounts/1');
+        $this->assertResponseStatusCodeSame(Response::HTTP_UNAUTHORIZED);
+    }
+}

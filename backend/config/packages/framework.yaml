@@ -13,8 +13,27 @@ framework:
     #esi: true
     #fragments: true
 
+    # Each sync and connection test makes real requests to the remote provider,
+    # so the endpoints that trigger them are throttled per user and account.
+    # A token bucket allows a small burst, then refills slowly.
+    rate_limiter:
+        integration_sync:
+            policy: 'token_bucket'
+            limit: 3
+            rate: { interval: '30 seconds', amount: 1 }
+        integration_test:
+            policy: 'token_bucket'
+            limit: 3
+            rate: { interval: '30 seconds', amount: 1 }
+
 when@test:
     framework:
         test: true
         session:
             storage_factory_id: session.storage.factory.mock_file
+
+        # The limiter cache stays on the filesystem here on purpose. KernelBrowser
+        # reboots the kernel between requests, so an in-memory pool would be empty
+        # on every request and the limiters would never limit anything.
+        # tests/bootstrap.php purges the pool once per run instead — see the note
+        # there about ids restarting while the cache does not.

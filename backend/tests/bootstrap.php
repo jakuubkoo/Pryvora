@@ -34,6 +34,12 @@ if ($_SERVER['APP_ENV'] === 'test')
         'php bin/console doctrine:database:drop --if-exists --force --env=test --quiet',
         'php bin/console doctrine:database:create --if-not-exists --env=test --quiet',
         'php bin/console doctrine:migrations:migrate --no-interaction --env=test --quiet',
+
+        // The database above is rebuilt every run, so ids restart at 1 — but the
+        // rate limiter's cache is on disk and does not. Without this, a bucket
+        // drained by one run is still drained for the next run's account 1, and any
+        // test asserting a burst limit fails on every second run.
+        'php bin/console cache:pool:clear cache.rate_limiter --env=test --quiet',
     ];
 
     foreach ($commands as $command)

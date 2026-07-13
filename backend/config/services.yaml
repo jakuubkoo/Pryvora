@@ -26,6 +26,17 @@ services:
         arguments:
             $key: '%env(resolve:PRYVORA_ENCRYPTION_KEY)%'
 
+    App\Controller\IntegrationController:
+        arguments:
+            $syncLimiter: '@limiter.integration_sync'
+            $testLimiter: '@limiter.integration_test'
+
+    App\Integration\Google\GoogleOAuthClient:
+        arguments:
+            $client_id: '%env(GOOGLE_CLIENT_ID)%'
+            $client_secret: '%env(GOOGLE_CLIENT_SECRET)%'
+            $redirect_uri: '%env(GOOGLE_OAUTH_REDIRECT_URI)%'
+
     App\Service\Search\ElasticsearchClientFactory:
         arguments:
             $elasticsearch_host: '%env(ELASTICSEARCH_HOST)%'
