@@ -110,7 +110,18 @@ After EVERY edit, use codebase-retrieval to find ALL downstream changes:
 
 ## Command Line
 
+### Branching (MANDATORY)
+- **NEVER** commit or push to `main` or `develop` directly
+- **ALWAYS** create a branch off `develop` for any change:
+  `git switch -c feature/<short-name> develop`
+- Prefixes: `feature/` for new work, `fix/` for bugfixes, `chore/` for tooling/docs
+- Commit and push the branch only: `git push -u origin feature/<short-name>`
+- **STOP there.** Jakub merges the branch into `develop` himself, and
+  `develop` into `main`, on his own schedule. Never open, merge, or
+  fast-forward those branches, and never push to them.
+
 ### Git Workflow
+- Never add `Co-Authored-By` trailers or any AI/Claude attribution to commits
 - Always use `--no-pager` with git commands
 - For branch comparisons:
   1. List changed files: `git --no-pager diff --name-only origin/dev...origin/feature`
