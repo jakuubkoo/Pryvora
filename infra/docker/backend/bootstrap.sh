@@ -85,6 +85,22 @@ fi
 mkdir -p var/cache var/log
 chmod -R 777 var
 
+echo "🗄️  Running database migrations..."
+migrated=0
+for attempt in $(seq 1 30); do
+    if php bin/console doctrine:migrations:migrate --no-interaction --allow-no-migration; then
+        migrated=1
+        break
+    fi
+    echo "   ...database not ready, retrying ($attempt/30)"
+    sleep 2
+done
+
+if [ "$migrated" -ne 1 ]; then
+    echo "❌ Migrations failed after 30 attempts. Aborting."
+    exit 1
+fi
+
 echo "🌐 Starting Symfony development server on 0.0.0.0:8000..."
 exec php -S 0.0.0.0:8000 -t public
 

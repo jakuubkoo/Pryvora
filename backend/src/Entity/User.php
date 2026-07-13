@@ -76,11 +76,18 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
     #[ORM\OneToMany(targetEntity: Task::class, mappedBy: 'author')]
     private Collection $tasks;
 
+    /**
+     * @var Collection<int, CalendarEvent>
+     */
+    #[ORM\OneToMany(targetEntity: CalendarEvent::class, mappedBy: 'userOwner', orphanRemoval: true)]
+    private Collection $calendarEvents;
+
     public function __construct()
     {
         $this->notes = new ArrayCollection();
         $this->tags = new ArrayCollection();
         $this->tasks = new ArrayCollection();
+        $this->calendarEvents = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -350,6 +357,36 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface, TwoFact
             // set the owning side to null (unless already changed)
             if ($task->getAuthor() === $this) {
                 $task->setAuthor(null);
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, CalendarEvent>
+     */
+    public function getCalendarEvents(): Collection
+    {
+        return $this->calendarEvents;
+    }
+
+    public function addCalendarEvent(CalendarEvent $calendarEvent): static
+    {
+        if (!$this->calendarEvents->contains($calendarEvent)) {
+            $this->calendarEvents->add($calendarEvent);
+            $calendarEvent->setUserOwner($this);
+        }
+
+        return $this;
+    }
+
+    public function removeCalendarEvent(CalendarEvent $calendarEvent): static
+    {
+        if ($this->calendarEvents->removeElement($calendarEvent)) {
+            // set the owning side to null (unless already changed)
+            if ($calendarEvent->getUserOwner() === $this) {
+                $calendarEvent->setUserOwner(null);
             }
         }
 
