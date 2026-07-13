@@ -31,3 +31,9 @@ when@test:
         test: true
         session:
             storage_factory_id: session.storage.factory.mock_file
+
+        # The limiter cache stays on the filesystem here on purpose. KernelBrowser
+        # reboots the kernel between requests, so an in-memory pool would be empty
+        # on every request and the limiters would never limit anything.
+        # tests/bootstrap.php purges the pool once per run instead — see the note
+        # there about ids restarting while the cache does not.
