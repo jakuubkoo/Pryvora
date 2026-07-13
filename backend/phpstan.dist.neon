@@ -16,3 +16,12 @@ parameters:
     ignoreErrors:
         # PHPUnit assertInstanceOf in tests
         - '#will always evaluate to true#'
+
+        # sabre/vobject exposes iCalendar properties (UID, DTSTART, ...) through
+        # __get and its components are untyped Traversables. It ships no PHPStan
+        # extension, so these are not analysable.
+        -
+            messages:
+                - '#Access to an undefined property Sabre\\VObject\\Component\\VEvent::\$[A-Z-]+\.#'
+                - '#no value type specified in iterable type Sabre\\VObject\\Component\\(VCalendar|VEvent)#'
+            path: src/Integration/Apple/ICalendarMapper.php
