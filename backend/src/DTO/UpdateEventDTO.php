@@ -34,9 +34,9 @@ class UpdateEventDTO
      */
     public function __construct(array $data)
     {
-        $this->title = \array_key_exists('title', $data) && $data['title'] !== null ? trim($data['title']) : null;
-        $this->description = \array_key_exists('description', $data) && $data['description'] !== null ? trim($data['description']) : null;
-        $this->location = \array_key_exists('location', $data) && $data['location'] !== null ? trim($data['location']) : null;
+        $this->title = \array_key_exists('title', $data) && null !== $data['title'] ? trim($data['title']) : null;
+        $this->description = \array_key_exists('description', $data) && null !== $data['description'] ? trim($data['description']) : null;
+        $this->location = \array_key_exists('location', $data) && null !== $data['location'] ? trim($data['location']) : null;
         $this->startsAt = \array_key_exists('startsAt', $data) ? $data['startsAt'] : null;
         $this->endsAt = \array_key_exists('endsAt', $data) ? $data['endsAt'] : null;
         $this->allDay = \array_key_exists('allDay', $data) ? (bool) $data['allDay'] : null;
