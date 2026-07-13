@@ -17,6 +17,8 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Messenger\MessageBusInterface;
+use Symfony\Component\RateLimiter\RateLimit;
+use Symfony\Component\RateLimiter\RateLimiterFactoryInterface;
 use Symfony\Component\Routing\Attribute\Route;
 
 #[Route('/api/integration', name: 'api_integration_')]
@@ -27,6 +29,8 @@ class IntegrationController extends AbstractController
         private readonly ConnectedAccountRepository $connectedAccountRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly MessageBusInterface $messageBus,
+        private readonly RateLimiterFactoryInterface $syncLimiter,
+        private readonly RateLimiterFactoryInterface $testLimiter,
     ) {
     }
 
@@ -157,6 +161,12 @@ class IntegrationController extends AbstractController
             return $this->deny();
         }
 
+        $limit = $this->testLimiter->create($this->limiter_key($account))->consume();
+
+        if (!$limit->isAccepted()) {
+            return $this->too_many_requests($limit);
+        }
+
         try {
             $this->registry->get((string) $account->getProvider())->test_connection($account);
         } catch (IntegrationException $exception) {
@@ -173,6 +183,14 @@ class IntegrationController extends AbstractController
 
         if (!$account instanceof ConnectedAccount) {
             return $this->deny();
+        }
+
+        // Every sync makes real requests to iCloud, so hammering the button must
+        // not queue a job per click.
+        $limit = $this->syncLimiter->create($this->limiter_key($account))->consume();
+
+        if (!$limit->isAccepted()) {
+            return $this->too_many_requests($limit);
         }
 
         $this->messageBus->dispatch(new SyncConnectedAccount((int) $account->getId()));
@@ -219,6 +237,29 @@ class IntegrationController extends AbstractController
     private function deny(): JsonResponse
     {
         return new JsonResponse(['error' => 'Not found'], Response::HTTP_NOT_FOUND);
+    }
+
+    /**
+     * Throttle per account, not per IP: two users behind one NAT must not
+     * exhaust each other's budget.
+     */
+    private function limiter_key(ConnectedAccount $account): string
+    {
+        return 'integration-'.$account->getId();
+    }
+
+    private function too_many_requests(RateLimit $limit): JsonResponse
+    {
+        $retry_after = max(1, $limit->getRetryAfter()->getTimestamp() - time());
+
+        return new JsonResponse(
+            [
+                'error' => 'Too many sync requests. Try again shortly.',
+                'retry_after' => $retry_after,
+            ],
+            Response::HTTP_TOO_MANY_REQUESTS,
+            ['Retry-After' => (string) $retry_after],
+        );
     }
 
     /**

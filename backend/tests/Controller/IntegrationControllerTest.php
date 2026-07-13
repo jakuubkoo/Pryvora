@@ -258,6 +258,35 @@ class IntegrationControllerTest extends WebTestCase
         $this->assertCount(0, $pushes);
     }
 
+    public function test_spamming_the_sync_button_is_throttled(): void
+    {
+        $seed = $this->seed_connected_account('https://caldav.icloud.com/123/calendars/home/');
+
+        $accepted = 0;
+        $throttled = 0;
+
+        for ($i = 0; $i < 8; ++$i) {
+            $seed['client']->request('POST', '/api/integration/accounts/' . $seed['account_id'] . '/sync', [], [], [
+                'HTTP_AUTHORIZATION' => 'Bearer ' . $seed['token'],
+            ]);
+
+            if (Response::HTTP_TOO_MANY_REQUESTS === $seed['client']->getResponse()->getStatusCode()) {
+                ++$throttled;
+            } else {
+                ++$accepted;
+            }
+        }
+
+        // The bucket allows a small burst, then refuses until it refills.
+        $this->assertSame(3, $accepted, 'The token bucket should accept only its burst limit.');
+        $this->assertSame(5, $throttled);
+
+        $body = json_decode($seed['client']->getResponse()->getContent() ?: '', true);
+        $this->assertArrayHasKey('retry_after', $body);
+        $this->assertGreaterThan(0, $body['retry_after']);
+        $this->assertTrue($seed['client']->getResponse()->headers->has('Retry-After'));
+    }
+
     public function test_sync_and_disconnect_require_authentication(): void
     {
         $client = static::createClient();
