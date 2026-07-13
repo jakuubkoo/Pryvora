@@ -13,7 +13,14 @@
 ### Docker-First Development (MANDATORY)
 - **NEVER** run bare-metal PHP, Node, Composer, or npm commands
 - **ALL** commands must run through Docker: `docker compose exec <service> <command>`
-- Services: `backend` (Symfony/PHP), `frontend` (React/Vite), `database` (MySQL), `redis`, `gateway` (WebSocket)
+- Services:
+  - `backend` — Symfony/PHP API, port 8000
+  - `frontend` — React/Vite dev server, port 5173
+  - `worker` — Messenger consumer (`messenger:consume async`)
+  - `scheduler` — 15-minute loop running `app:integrations:sync`
+  - `db` — Postgres 16, port 5432
+  - `elasticsearch` — token-only search index, port 9200
+- There is no MySQL, no Redis, and no WebSocket gateway in this stack
 - Check container logs before debugging: `docker compose logs <service>`
 - Restart services: `docker compose restart <service>`
 - Rebuild only when config/code changes: `docker compose up --build`
@@ -34,10 +41,10 @@
 - Use absolute imports via `vite.config.ts` setup
 - Never mix raw Node/npm—always run inside Docker
 
-### WebSocket Gateway
-- Simple Node.js + ws + TypeScript (no NestJS or heavy frameworks)
-- Configured via environment variables
-- Real-time updates for EquitiesGroups and Current Session metrics
+### Async Work
+- `worker` consumes the `async` Messenger transport; long or network-bound work
+  (integration syncs, calendar push) is dispatched as a Message, never done in a controller
+- `scheduler` ticks every 900s and only enqueues—the worker does the work
 
 ## Code Style (STRICT)
 
@@ -47,11 +54,25 @@
 
 ### Control Structures
 - **Always use braces** for if/else/try/catch (even single-line blocks)
-- **Allman style:** Opening brace on new line
+- Brace placement differs per language—this is not a preference, it is what the
+  tooling enforces:
+
+**Frontend (JS/JSX): Allman.** Opening brace on a new line.
+
+```jsx
+if (!value)
+{
+    do_something();
+}
+```
+
+**Backend (PHP): K&R.** Opening brace on the same line.
+`.php-cs-fixer.dist.php` applies the `@Symfony` ruleset over `src/`, which
+mandates K&R and **will rewrite Allman braces on the next `fix` run.** Do not
+fight it.
 
 ```php
-if ($condition)
-{
+if (!$value) {
     do_something();
 }
 ```
@@ -134,9 +155,17 @@ After EVERY edit, use codebase-retrieval to find ALL downstream changes:
 
 ## Testing
 
-### Integration Tests
-- API tests should make real API calls to external APIs
-- Configure credentials in `.env.test`
+### Never Call Third-Party APIs From Tests (CRITICAL)
+- **NEVER** hit a real external API (Google, iCloud, …) from the test suite
+- Live calls leak credentials into `.env.test`, make tests nondeterministic, and
+  risk getting the account rate-limited or the OAuth client suspended
+- Instead:
+  - Unit-test the pure mappers/classifiers against inline fixture payloads
+    (see `tests/Integration/Apple/ICalendarMapperTest.php`)
+  - Seed database state directly for controller tests
+    (see `tests/Controller/IntegrationControllerTest.php`)
+  - Use `MockHttpClient` if a transport class ever needs coverage
+- `.env.test` holds fake values only—enough for the kernel to boot, never real secrets
 
 ## Response Style
 
