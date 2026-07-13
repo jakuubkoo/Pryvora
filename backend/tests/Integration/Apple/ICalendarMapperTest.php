@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Tests\Integration\Apple;
 
+use App\Entity\CalendarEvent;
 use App\Entity\ConnectedAccount;
 use App\Entity\User;
 use App\Integration\Apple\ICalendarMapper;
@@ -171,6 +172,135 @@ class ICalendarMapperTest extends TestCase
         $this->assertSame($first, $second);
         $this->assertSame('Renamed', $second->getTitle());
         $this->assertNotNull($second->getUpdatedAt());
+    }
+
+    public function testToIcsSerializesTimedEventInUtc(): void
+    {
+        $event = $this->local_event('Standup', new \DateTimeImmutable('2026-07-13 09:00:00', new \DateTimeZone('UTC')), new \DateTimeImmutable('2026-07-13 09:30:00', new \DateTimeZone('UTC')), false);
+        $event->setExternalUid('push-1');
+        $event->setLocation('Room 2');
+
+        $ics = $this->mapper->to_ics($event);
+
+        $this->assertStringContainsString('UID:push-1', $ics);
+        $this->assertStringContainsString('SUMMARY:Standup', $ics);
+        $this->assertStringContainsString('LOCATION:Room 2', $ics);
+        $this->assertStringContainsString('DTSTART:20260713T090000Z', $ics);
+        $this->assertStringContainsString('DTEND:20260713T093000Z', $ics);
+    }
+
+    public function testToIcsSerializesAllDayEventAsADate(): void
+    {
+        $event = $this->local_event('Holiday', new \DateTimeImmutable('2026-07-14 00:00:00', new \DateTimeZone('UTC')), new \DateTimeImmutable('2026-07-15 00:00:00', new \DateTimeZone('UTC')), true);
+        $event->setExternalUid('allday-push');
+
+        $ics = $this->mapper->to_ics($event);
+
+        $this->assertStringContainsString('DTSTART;VALUE=DATE:20260714', $ics);
+        $this->assertStringContainsString('DTEND;VALUE=DATE:20260715', $ics);
+        $this->assertStringNotContainsString('DTSTART:', $ics);
+    }
+
+    public function testToIcsGivesAllDayEventAnExclusiveEnd(): void
+    {
+        // DTEND is exclusive for all-day events, so a same-day event must end
+        // on the following date or Apple renders nothing.
+        $day = new \DateTimeImmutable('2026-07-14 00:00:00', new \DateTimeZone('UTC'));
+        $event = $this->local_event('One day', $day, $day, true);
+        $event->setExternalUid('allday-same');
+
+        $ics = $this->mapper->to_ics($event);
+
+        $this->assertStringContainsString('DTSTART;VALUE=DATE:20260714', $ics);
+        $this->assertStringContainsString('DTEND;VALUE=DATE:20260715', $ics);
+    }
+
+    public function testToIcsSendsThePlaintextDescriptionNotTheCiphertext(): void
+    {
+        $event = $this->local_event('Private', new \DateTimeImmutable('2026-07-13 09:00:00', new \DateTimeZone('UTC')), new \DateTimeImmutable('2026-07-13 10:00:00', new \DateTimeZone('UTC')), false);
+        $event->setExternalUid('secret-push');
+        $event->setDescription($this->encryption_service->encrypt('Bring the passport'));
+
+        $ics = $this->mapper->to_ics($event);
+
+        $this->assertStringContainsString('Bring the passport', $ics);
+        $this->assertStringNotContainsString($event->getDescription(), $ics);
+    }
+
+    public function testToIcsHandlesTheEmptyDescriptionEventControllerWrites(): void
+    {
+        // EventController stores '' (not null) when there is no description, and
+        // decrypting '' would blow up.
+        $event = $this->local_event('No notes', new \DateTimeImmutable('2026-07-13 09:00:00', new \DateTimeZone('UTC')), new \DateTimeImmutable('2026-07-13 10:00:00', new \DateTimeZone('UTC')), false);
+        $event->setExternalUid('empty-desc');
+        $event->setDescription('');
+
+        $ics = $this->mapper->to_ics($event);
+
+        $this->assertStringNotContainsString('DESCRIPTION', $ics);
+    }
+
+    public function testToIcsMergePreservesRecurrenceAndAlarms(): void
+    {
+        $existing = $this->ics(<<<'ICS'
+            UID:weekly-1
+            SUMMARY:Old title
+            DTSTART:20260713T090000Z
+            DTEND:20260713T093000Z
+            RRULE:FREQ=WEEKLY;COUNT=10
+            BEGIN:VALARM
+            ACTION:DISPLAY
+            TRIGGER:-PT15M
+            END:VALARM
+            ICS);
+
+        $event = $this->local_event('New title', new \DateTimeImmutable('2026-07-13 09:00:00', new \DateTimeZone('UTC')), new \DateTimeImmutable('2026-07-13 09:30:00', new \DateTimeZone('UTC')), false);
+        $event->setExternalUid('weekly-1');
+
+        $ics = $this->mapper->to_ics($event, $existing);
+
+        $this->assertStringContainsString('SUMMARY:New title', $ics);
+        $this->assertStringNotContainsString('Old title', $ics);
+        // Rebuilding from scratch would silently collapse the series.
+        $this->assertStringContainsString('RRULE:FREQ=WEEKLY;COUNT=10', $ics);
+        $this->assertStringContainsString('BEGIN:VALARM', $ics);
+        $this->assertStringContainsString('TRIGGER:-PT15M', $ics);
+    }
+
+    public function testNewUidIsUnique(): void
+    {
+        $this->assertNotSame($this->mapper->new_uid(), $this->mapper->new_uid());
+        $this->assertStringEndsWith('@pryvora.app', $this->mapper->new_uid());
+    }
+
+    public function testRoundTripSurvivesToIcsAndBack(): void
+    {
+        $event = $this->local_event('Round trip', new \DateTimeImmutable('2026-07-13 09:00:00', new \DateTimeZone('UTC')), new \DateTimeImmutable('2026-07-13 10:30:00', new \DateTimeZone('UTC')), false);
+        $event->setExternalUid('round-1');
+        $event->setDescription($this->encryption_service->encrypt('notes here'));
+
+        $reparsed = $this->mapper->to_calendar_event($this->mapper->to_ics($event), $this->account, null);
+
+        $this->assertNotNull($reparsed);
+        $this->assertSame('Round trip', $reparsed->getTitle());
+        $this->assertSame('2026-07-13 09:00:00', $reparsed->getStartsAt()->format('Y-m-d H:i:s'));
+        $this->assertSame('2026-07-13 10:30:00', $reparsed->getEndsAt()->format('Y-m-d H:i:s'));
+        $this->assertSame('notes here', $this->encryption_service->decrypt($reparsed->getDescription()));
+    }
+
+    private function local_event(string $title, \DateTimeImmutable $starts_at, \DateTimeImmutable $ends_at, bool $all_day): CalendarEvent
+    {
+        $event = new CalendarEvent();
+        $event->setUserOwner($this->account->getUserOwner());
+        $event->setConnectedAccount($this->account);
+        $event->setTitle($title);
+        $event->setStartsAt($starts_at);
+        $event->setEndsAt($ends_at);
+        $event->setAllDay($all_day);
+        $event->setDescription('');
+        $event->setCreatedAt(new \DateTimeImmutable());
+
+        return $event;
     }
 
     private function ics(string $vevent): string

@@ -4,7 +4,13 @@ declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
+use App\Entity\ConnectedAccount;
+use App\Entity\User;
+use App\Enum\IntegrationStatus;
 use App\Integration\Apple\AppleCalendarProvider;
+use App\Message\PushCalendarEvent;
+use App\Service\ConnectedAccountCredentials;
+use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\KernelBrowser;
 use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
 use Symfony\Component\HttpFoundation\Response;
@@ -122,6 +128,134 @@ class IntegrationControllerTest extends WebTestCase
         ]);
 
         $this->assertResponseStatusCodeSame(Response::HTTP_NOT_FOUND);
+    }
+
+    /**
+     * Seeds a connected account directly, since connect() would hit iCloud.
+     *
+     * @return array{client: KernelBrowser, token: string, account_id: int}
+     */
+    private function seed_connected_account(?string $target = null): array
+    {
+        $auth_data = $this->register_and_login_user();
+        $container = static::getContainer();
+        $entity_manager = $container->get(EntityManagerInterface::class);
+        $credentials = $container->get(ConnectedAccountCredentials::class);
+
+        $user = $entity_manager->getRepository(User::class)->findOneBy(['email' => $auth_data['email']]);
+
+        $account = new ConnectedAccount();
+        $account->setUserOwner($user);
+        $account->setProvider(AppleCalendarProvider::KEY);
+        $account->setDisplayName($auth_data['email']);
+        $account->setStatus(IntegrationStatus::CONNECTED);
+        $account->setCreatedAt(new \DateTimeImmutable());
+        $account->setTargetCalendarHref($target);
+        $account->setSyncState([
+            'calendar_home' => 'https://caldav.icloud.com/123/calendars/',
+            'calendars' => [
+                ['href' => 'https://caldav.icloud.com/123/calendars/home/', 'display_name' => 'Home', 'sync_token' => null],
+                ['href' => 'https://caldav.icloud.com/123/calendars/work/', 'display_name' => 'Work', 'sync_token' => null],
+            ],
+        ]);
+        $credentials->write($account, ['apple_id' => $auth_data['email'], 'app_password' => 'aaaa-bbbb-cccc-dddd']);
+
+        $entity_manager->persist($account);
+        $entity_manager->flush();
+
+        return [
+            'client' => $auth_data['client'],
+            'token' => $auth_data['token'],
+            'account_id' => (int) $account->getId(),
+        ];
+    }
+
+    public function test_providers_exposes_the_discovered_calendars(): void
+    {
+        $seed = $this->seed_connected_account();
+
+        $seed['client']->request('GET', '/api/integration/providers', [], [], [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $seed['token'],
+        ]);
+
+        $this->assertResponseIsSuccessful();
+        $providers = json_decode($seed['client']->getResponse()->getContent() ?: '', true);
+
+        $this->assertCount(2, $providers[0]['account']['calendars']);
+        $this->assertSame('Home', $providers[0]['account']['calendars'][0]['display_name']);
+        $this->assertNull($providers[0]['account']['target_calendar_href']);
+    }
+
+    public function test_patch_sets_the_target_calendar(): void
+    {
+        $seed = $this->seed_connected_account();
+
+        $seed['client']->request('PATCH', '/api/integration/accounts/' . $seed['account_id'], [], [], [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $seed['token'],
+            'CONTENT_TYPE' => 'application/json',
+        ], json_encode(['target_calendar_href' => 'https://caldav.icloud.com/123/calendars/work/']) ?: '');
+
+        $this->assertResponseIsSuccessful();
+        $body = json_decode($seed['client']->getResponse()->getContent() ?: '', true);
+        $this->assertSame('https://caldav.icloud.com/123/calendars/work/', $body['target_calendar_href']);
+    }
+
+    public function test_patch_rejects_a_calendar_that_is_not_ours(): void
+    {
+        $seed = $this->seed_connected_account();
+
+        $seed['client']->request('PATCH', '/api/integration/accounts/' . $seed['account_id'], [], [], [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $seed['token'],
+            'CONTENT_TYPE' => 'application/json',
+        ], json_encode(['target_calendar_href' => 'https://evil.example.com/calendars/steal/']) ?: '');
+
+        $this->assertResponseStatusCodeSame(Response::HTTP_UNPROCESSABLE_ENTITY);
+    }
+
+    public function test_creating_an_event_queues_a_push_when_a_target_is_set(): void
+    {
+        $seed = $this->seed_connected_account('https://caldav.icloud.com/123/calendars/home/');
+
+        $seed['client']->request('POST', '/api/event', [], [], [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $seed['token'],
+            'CONTENT_TYPE' => 'application/json',
+        ], json_encode([
+            'title' => 'Push me',
+            'startsAt' => (new \DateTimeImmutable('+1 day'))->setTime(10, 0)->format(\DateTimeInterface::ATOM),
+            'endsAt' => (new \DateTimeImmutable('+1 day'))->setTime(11, 0)->format(\DateTimeInterface::ATOM),
+            'allDay' => false,
+        ]) ?: '');
+
+        $this->assertResponseStatusCodeSame(Response::HTTP_CREATED);
+
+        $sent = static::getContainer()->get('messenger.transport.async')->getSent();
+        $pushes = array_filter($sent, static fn ($envelope) => $envelope->getMessage() instanceof PushCalendarEvent);
+
+        $this->assertCount(1, $pushes, 'Creating an event with a target calendar must queue exactly one push.');
+    }
+
+    public function test_creating_an_event_queues_nothing_without_a_target(): void
+    {
+        // No target calendar chosen: the event stays local rather than being
+        // written to a calendar we had to guess.
+        $seed = $this->seed_connected_account();
+
+        $seed['client']->request('POST', '/api/event', [], [], [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $seed['token'],
+            'CONTENT_TYPE' => 'application/json',
+        ], json_encode([
+            'title' => 'Local only',
+            'startsAt' => (new \DateTimeImmutable('+1 day'))->setTime(10, 0)->format(\DateTimeInterface::ATOM),
+            'endsAt' => (new \DateTimeImmutable('+1 day'))->setTime(11, 0)->format(\DateTimeInterface::ATOM),
+            'allDay' => false,
+        ]) ?: '');
+
+        $this->assertResponseStatusCodeSame(Response::HTTP_CREATED);
+
+        $sent = static::getContainer()->get('messenger.transport.async')->getSent();
+        $pushes = array_filter($sent, static fn ($envelope) => $envelope->getMessage() instanceof PushCalendarEvent);
+
+        $this->assertCount(0, $pushes);
     }
 
     public function test_sync_and_disconnect_require_authentication(): void

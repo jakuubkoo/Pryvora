@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Integration\Apple;
 
+use App\Integration\Exception\CalDavConflictException;
 use App\Integration\Exception\IntegrationException;
 use Symfony\Component\HttpClient\Exception\ClientException;
 use Symfony\Contracts\HttpClient\Exception\ExceptionInterface;
@@ -169,7 +170,7 @@ final class CalDavClient
      * Bounded full enumeration. Used for the first sync and whenever a sync
      * token goes stale.
      *
-     * @return array<string, string> href => iCalendar body
+     * @return array<string, array{etag: ?string, ics: string}> href => resource
      */
     public function calendar_query(string $calendar_url, \DateTimeImmutable $from, \DateTimeImmutable $to, string $username, string $password): array
     {
@@ -201,7 +202,7 @@ final class CalDavClient
     /**
      * @param list<string> $hrefs
      *
-     * @return array<string, string> href => iCalendar body
+     * @return array<string, array{etag: ?string, ics: string}> href => resource
      */
     public function multiget(string $calendar_url, array $hrefs, string $username, string $password): array
     {
@@ -232,7 +233,118 @@ final class CalDavClient
     }
 
     /**
-     * @return array<string, string>
+     * Creates or replaces a calendar resource. Returns the new ETag when the
+     * server sends one; iCloud sometimes omits it, in which case the next pull
+     * refreshes it.
+     *
+     * @throws CalDavConflictException when the remote changed under us (412)
+     */
+    public function put_event(string $href, string $ics, ?string $etag, string $username, string $password): ?string
+    {
+        $headers = ['Content-Type' => 'text/calendar; charset=utf-8'];
+
+        if (null !== $etag) {
+            // Conditional replace: fails with 412 if someone edited it since.
+            $headers['If-Match'] = $etag;
+        } else {
+            // Create: fails if a resource already lives at this href.
+            $headers['If-None-Match'] = '*';
+        }
+
+        $result = $this->write_request('PUT', $href, $username, $password, $ics, $headers);
+
+        if (412 === $result['status'] || 409 === $result['status']) {
+            throw new CalDavConflictException('This event changed on iCloud since Pryvora last read it.');
+        }
+
+        if ($result['status'] < 200 || $result['status'] >= 300) {
+            throw new IntegrationException(\sprintf('iCloud rejected the event with status %d.', $result['status']));
+        }
+
+        return $result['etag'];
+    }
+
+    /**
+     * 404/410 count as success: the resource is already gone, which is the
+     * outcome we wanted.
+     *
+     * @throws CalDavConflictException when the remote changed under us (412)
+     */
+    public function delete_event(string $href, ?string $etag, string $username, string $password): void
+    {
+        $headers = [];
+
+        if (null !== $etag) {
+            $headers['If-Match'] = $etag;
+        }
+
+        $result = $this->write_request('DELETE', $href, $username, $password, null, $headers);
+
+        if (412 === $result['status']) {
+            throw new CalDavConflictException('This event changed on iCloud since Pryvora last read it.');
+        }
+
+        if (404 === $result['status'] || 410 === $result['status']) {
+            return;
+        }
+
+        if ($result['status'] < 200 || $result['status'] >= 300) {
+            throw new IntegrationException(\sprintf('iCloud refused to delete the event, status %d.', $result['status']));
+        }
+    }
+
+    /**
+     * PUT and DELETE return no body worth parsing, only a status and (on PUT) an
+     * ETag, so they cannot go through request(), which is XML-in/XPath-out.
+     * getHeaders(false) keeps a 4xx from throwing so the caller can act on a 412
+     * rather than unwrap a ClientException.
+     *
+     * @param array<string, string> $headers
+     *
+     * @return array{status: int, etag: ?string}
+     */
+    private function write_request(string $method, string $url, string $username, string $password, ?string $body, array $headers): array
+    {
+        $options = [
+            'auth_basic' => [$username, $password],
+            'headers' => $headers,
+        ];
+
+        if (null !== $body) {
+            $options['body'] = $body;
+        }
+
+        try {
+            $response = $this->http_client->request($method, $url, $options);
+
+            $status = $response->getStatusCode();
+            $response_headers = $response->getHeaders(false);
+        } catch (ExceptionInterface $exception) {
+            throw new IntegrationException('Could not reach the CalDAV server: '.$exception->getMessage(), 0, $exception);
+        }
+
+        if (401 === $status || 403 === $status) {
+            throw $this->credential_error($status);
+        }
+
+        // Symfony lowercases header names. The ETag is stored and resent
+        // verbatim, quotes and any W/ prefix included.
+        $etag = $response_headers['etag'][0] ?? null;
+
+        return ['status' => $status, 'etag' => $etag];
+    }
+
+    private function credential_error(int $status): IntegrationException
+    {
+        return new IntegrationException('Apple rejected these credentials. iCloud requires an app-specific password, not your normal Apple ID password.', $status);
+    }
+
+    /**
+     * The ETag is kept, not discarded: a later conditional PUT needs the tag of
+     * the version we actually hold, otherwise an edit made on iCloud leaves us
+     * with a stale tag and the next local edit dies on a bogus 412.
+     *
+     * @return array<string, array{etag: ?string, ics: string}>
      */
     private function extract_calendar_data(\DOMXPath $xpath, string $base_url): array
     {
@@ -246,7 +358,10 @@ final class CalDavClient
                 continue;
             }
 
-            $events[$this->resolve_url($base_url, $href)] = $data;
+            $events[$this->resolve_url($base_url, $href)] = [
+                'etag' => $this->query_text($xpath, './/d:getetag', $response),
+                'ics' => $data,
+            ];
         }
 
         return $events;
@@ -308,7 +423,7 @@ final class CalDavClient
             $status = $exception->getResponse()->getStatusCode();
 
             if (401 === $status || 403 === $status) {
-                throw new IntegrationException('Apple rejected these credentials. iCloud requires an app-specific password, not your normal Apple ID password.', $status, $exception);
+                throw $this->credential_error($status);
             }
 
             throw new IntegrationException(\sprintf('CalDAV request failed with status %d.', $status), $status, $exception);

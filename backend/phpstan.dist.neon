@@ -22,6 +22,6 @@ parameters:
         # extension, so these are not analysable.
         -
             messages:
-                - '#Access to an undefined property Sabre\\VObject\\Component\\VEvent::\$[A-Z-]+\.#'
+                - '#Access to an undefined property Sabre\\VObject\\Component\\(VCalendar|VEvent)::\$[A-Z-]+\.#'
                 - '#no value type specified in iterable type Sabre\\VObject\\Component\\(VCalendar|VEvent)#'
             path: src/Integration/Apple/ICalendarMapper.php

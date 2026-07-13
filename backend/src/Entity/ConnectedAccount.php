@@ -52,6 +52,14 @@ class ConnectedAccount
     #[ORM\Column(nullable: true)]
     private ?array $syncState = null;
 
+    /**
+     * Which remote calendar new Pryvora events are written to. A real column
+     * rather than a key inside syncState, which sync() rewrites wholesale and
+     * would clobber a choice made while a sync was running.
+     */
+    #[ORM\Column(length: 512, nullable: true)]
+    private ?string $targetCalendarHref = null;
+
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $lastSyncedAt = null;
 
@@ -194,6 +202,18 @@ class ConnectedAccount
     public function setSyncState(?array $syncState): static
     {
         $this->syncState = $syncState;
+
+        return $this;
+    }
+
+    public function getTargetCalendarHref(): ?string
+    {
+        return $this->targetCalendarHref;
+    }
+
+    public function setTargetCalendarHref(?string $targetCalendarHref): static
+    {
+        $this->targetCalendarHref = $targetCalendarHref;
 
         return $this;
     }

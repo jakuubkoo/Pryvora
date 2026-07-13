@@ -6,6 +6,7 @@ namespace App\Controller;
 
 use App\Entity\ConnectedAccount;
 use App\Entity\User;
+use App\Integration\CalendarWriteInterface;
 use App\Integration\Exception\IntegrationException;
 use App\Integration\ProviderRegistry;
 use App\Message\SyncConnectedAccount;
@@ -109,6 +110,44 @@ class IntegrationController extends AbstractController
         return new JsonResponse($this->serialize_account($account), Response::HTTP_CREATED);
     }
 
+    #[Route('/accounts/{id}', name: 'update', methods: ['PATCH'])]
+    public function update(int $id, Request $request): JsonResponse
+    {
+        $account = $this->find_owned_account($id);
+
+        if (!$account instanceof ConnectedAccount) {
+            return $this->deny();
+        }
+
+        $payload = json_decode($request->getContent(), true);
+
+        if (!\is_array($payload) || !\array_key_exists('target_calendar_href', $payload)) {
+            return new JsonResponse(['error' => 'A target_calendar_href is required.'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $target = $payload['target_calendar_href'];
+
+        if (null === $target) {
+            $account->setTargetCalendarHref(null);
+            $this->entityManager->flush();
+
+            return new JsonResponse($this->serialize_account($account), Response::HTTP_OK);
+        }
+
+        $known = array_column($this->list_calendars($account), 'href');
+
+        // Only ever write to a calendar we actually discovered, never to an
+        // arbitrary URL supplied by the client.
+        if (!\in_array($target, $known, true)) {
+            return new JsonResponse(['error' => 'That calendar does not belong to this account.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $account->setTargetCalendarHref((string) $target);
+        $this->entityManager->flush();
+
+        return new JsonResponse($this->serialize_account($account), Response::HTTP_OK);
+    }
+
     #[Route('/accounts/{id}/test', name: 'test', methods: ['POST'])]
     public function test(int $id): JsonResponse
     {
@@ -183,6 +222,23 @@ class IntegrationController extends AbstractController
     }
 
     /**
+     * The calendars this account can write to. Read from the sync state, so no
+     * network call. Empty for providers that cannot write calendars.
+     *
+     * @return list<array{href: string, display_name: string}>
+     */
+    private function list_calendars(ConnectedAccount $account): array
+    {
+        $provider = $this->registry->get((string) $account->getProvider());
+
+        if (!$provider instanceof CalendarWriteInterface) {
+            return [];
+        }
+
+        return $provider->list_target_calendars($account);
+    }
+
+    /**
      * Never exposes the credential bag.
      *
      * @return array<string, mixed>
@@ -197,6 +253,8 @@ class IntegrationController extends AbstractController
             'last_error' => $account->getLastError(),
             'last_synced_at' => $account->getLastSyncedAt()?->format(\DateTimeInterface::ATOM),
             'created_at' => $account->getCreatedAt()?->format(\DateTimeInterface::ATOM),
+            'target_calendar_href' => $account->getTargetCalendarHref(),
+            'calendars' => $this->list_calendars($account),
         ];
     }
 }

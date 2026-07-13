@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useAuth } from '@/contexts/AuthContext'
 
 const STATUS_LABELS = {
@@ -182,6 +183,41 @@ export default function IntegrationsSection()
     }
   }
 
+  const handle_target_change = async (provider, href) =>
+  {
+    set_busy_key(provider.key)
+    set_error('')
+    set_success('')
+
+    try
+    {
+      const response = await api_request(
+        `${import.meta.env.VITE_API_URL}/api/integration/accounts/${provider.account.id}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ target_calendar_href: href }),
+        },
+      )
+
+      if (!response.ok)
+      {
+        throw new Error('Could not set the target calendar.')
+      }
+
+      set_success('New Pryvora events will be added to this calendar.')
+      await load_providers()
+    }
+    catch (err)
+    {
+      set_error(err.message)
+    }
+    finally
+    {
+      set_busy_key('')
+    }
+  }
+
   const handle_disconnect = async () =>
   {
     const provider = disconnect_target
@@ -258,6 +294,32 @@ export default function IntegrationsSection()
               </p>
               {provider.account?.last_error && (
                 <p className="text-[12px] text-down">{provider.account.last_error}</p>
+              )}
+
+              {provider.account && provider.account.calendars?.length > 0 && (
+                <div className="space-y-1 pt-1">
+                  <Select
+                    value={provider.account.target_calendar_href ?? ''}
+                    disabled={busy_key === provider.key}
+                    onValueChange={(href) => handle_target_change(provider, href)}
+                  >
+                    <SelectTrigger className="h-8 w-[220px] rounded-[10px] border-line bg-panel text-[12px] text-ink">
+                      <SelectValue placeholder="Choose a calendar to write to" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {provider.account.calendars.map((calendar) => (
+                        <SelectItem key={calendar.href} value={calendar.href}>
+                          {calendar.display_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {!provider.account.target_calendar_href && (
+                    <p className="text-[12px] text-faint">
+                      Pick a calendar to push Pryvora events to iCloud.
+                    </p>
+                  )}
+                </div>
               )}
             </div>
 
@@ -351,8 +413,8 @@ export default function IntegrationsSection()
           <DialogHeader>
             <DialogTitle>Disconnect {disconnect_target?.label}?</DialogTitle>
             <DialogDescription>
-              The stored credentials and every event imported from this account will be deleted.
-              Events you created in Pryvora are kept.
+              The stored credentials and Pryvora's local copies of this account's events will be
+              deleted. Anything already pushed to iCloud stays on iCloud.
             </DialogDescription>
           </DialogHeader>
 
