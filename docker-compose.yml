@@ -15,6 +15,9 @@ services:
     environment:
       APP_ENV: dev
       APP_SECRET: dev_secret_change_in_production
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_OAUTH_REDIRECT_URI: ${GOOGLE_OAUTH_REDIRECT_URI:-http://localhost:8000/api/integration/oauth/callback}
     depends_on:
       db:
         condition: service_healthy
@@ -51,6 +54,9 @@ services:
     environment:
       APP_ENV: dev
       APP_SECRET: dev_secret_change_in_production
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_OAUTH_REDIRECT_URI: ${GOOGLE_OAUTH_REDIRECT_URI:-http://localhost:8000/api/integration/oauth/callback}
     depends_on:
       db:
         condition: service_healthy
@@ -75,6 +81,9 @@ services:
     environment:
       APP_ENV: dev
       APP_SECRET: dev_secret_change_in_production
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_OAUTH_REDIRECT_URI: ${GOOGLE_OAUTH_REDIRECT_URI:-http://localhost:8000/api/integration/oauth/callback}
     depends_on:
       db:
         condition: service_healthy

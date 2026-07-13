@@ -35,6 +35,11 @@ security:
     access_control:
         - { path: ^/api/test, roles: PUBLIC_ACCESS }
         - { path: ^/api/auth, roles: PUBLIC_ACCESS }
+        # Google redirects the browser here with no Authorization header, so this
+        # must be public. It is not unauthenticated in effect: the controller
+        # derives the user from an HMAC-signed state it issued itself.
+        # Rules are evaluated top-down — this has to stay above the ^/api catch-all.
+        - { path: ^/api/integration/oauth/callback, roles: PUBLIC_ACCESS }
         - { path: ^/api, roles: IS_AUTHENTICATED_FULLY }
 
 when@test:

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Check, Plug, RefreshCw, TriangleAlert, Unplug } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -35,6 +36,7 @@ function format_synced_at(value)
 export default function IntegrationsSection()
 {
   const { api_request } = useAuth()
+  const [search_params, set_search_params] = useSearchParams()
 
   const [providers, set_providers] = useState([])
   const [loading, set_loading] = useState(true)
@@ -81,6 +83,66 @@ export default function IntegrationsSection()
   {
     load_providers()
   }, [])
+
+  // The OAuth callback bounces the browser back here with the outcome in the query
+  // string. Show it as the usual banner, then strip the params so a refresh does
+  // not replay a stale message.
+  useEffect(() =>
+  {
+    const status = search_params.get('status')
+
+    if (!status)
+    {
+      return
+    }
+
+    if ('connected' === status)
+    {
+      set_success('Gmail connected. The first sync is running in the background.')
+    }
+    else
+    {
+      set_error(search_params.get('message') || 'Could not connect that account.')
+    }
+
+    const next = new URLSearchParams(search_params)
+
+    next.delete('integration')
+    next.delete('status')
+    next.delete('message')
+
+    set_search_params(next, { replace: true })
+  }, [search_params, set_search_params])
+
+  const handle_oauth_connect = async (provider) =>
+  {
+    set_busy_key(provider.key)
+    set_error('')
+    set_success('')
+
+    try
+    {
+      const response = await api_request(
+        `${import.meta.env.VITE_API_URL}/api/integration/oauth/${provider.key}/start`,
+      )
+
+      const data = await response.json().catch(() => ({}))
+
+      if (!response.ok)
+      {
+        throw new Error(data.error || 'Could not start the sign-in.')
+      }
+
+      // A full navigation, not a fetch: the consent screen is Google's page and the
+      // user has to actually see it.
+      window.location.assign(data.authorization_url)
+    }
+    catch (err)
+    {
+      set_error(err.message)
+      set_busy_key('')
+    }
+  }
 
   useEffect(() =>
   {
@@ -375,6 +437,22 @@ export default function IntegrationsSection()
                 <p className="text-[12px] text-down">{provider.account.last_error}</p>
               )}
 
+              {/* Without this a self-hoster who has not set up a Google project just
+                  sees a Connect button that fails. */}
+              {!provider.account && false === provider.available && (
+                <p className="text-[12px] text-faint">{provider.unavailable_reason}</p>
+              )}
+
+              {/* Said before consent, not after the first breakage. There is no
+                  connect dialog on the OAuth path to put this in. */}
+              {'oauth' === provider.auth && !provider.account && false !== provider.available && (
+                <p className="text-[12px] text-faint">
+                  Read-only: Pryvora can never label, archive or delete your mail.
+                  Google expires access every 7 days for personal accounts, so you will
+                  need to reconnect weekly.
+                </p>
+              )}
+
               {provider.account && provider.account.calendars?.length > 0 && (
                 <div className="space-y-1 pt-1">
                   <Select
@@ -442,9 +520,15 @@ export default function IntegrationsSection()
                     </>
                   )
                 : (
-                    <Button size="sm" onClick={() => open_connect(provider)}>
+                    <Button
+                      size="sm"
+                      disabled={false === provider.available || busy_key === provider.key}
+                      onClick={() => 'oauth' === provider.auth
+                        ? handle_oauth_connect(provider)
+                        : open_connect(provider)}
+                    >
                       <Plug className="size-3.5" aria-hidden="true" />
-                      Connect
+                      {'oauth' === provider.auth ? 'Connect with Google' : 'Connect'}
                     </Button>
                   )}
             </div>
@@ -499,8 +583,8 @@ export default function IntegrationsSection()
           <DialogHeader>
             <DialogTitle>Disconnect {disconnect_target?.label}?</DialogTitle>
             <DialogDescription>
-              The stored credentials and Pryvora's local copies of this account's events will be
-              deleted. Anything already pushed to iCloud stays on iCloud.
+              The stored credentials and Pryvora's local copy of this account's data will be
+              deleted. Nothing changes in the remote account.
             </DialogDescription>
           </DialogHeader>
 
