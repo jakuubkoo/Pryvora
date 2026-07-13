@@ -16,6 +16,12 @@ const STATUS_LABELS = {
   disconnected: 'Disconnected',
 }
 
+const STATUS_STYLES = {
+  connected: 'border-accent/40 bg-accent/10 text-accent',
+  error: 'border-down/40 bg-down/10 text-down',
+  disconnected: 'border-line2 bg-panel text-dim',
+}
+
 function format_synced_at(value)
 {
   if (!value)
@@ -351,7 +357,11 @@ export default function IntegrationsSection()
               <div className="flex items-center gap-2">
                 <span className="text-[13px] font-medium text-ink">{provider.label}</span>
                 {provider.account && (
-                  <Badge variant={'error' === provider.account.status ? 'destructive' : 'secondary'}>
+                  <Badge
+                    variant="outline"
+                    className={STATUS_STYLES[provider.account.status] ?? STATUS_STYLES.disconnected}
+                  >
+                    <span className="size-1.5 rounded-full bg-current" aria-hidden="true"/>
                     {STATUS_LABELS[provider.account.status]}
                   </Badge>
                 )}
