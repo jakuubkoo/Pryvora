@@ -13,6 +13,10 @@
     <php>
         <ini name="display_errors" value="1" />
         <ini name="error_reporting" value="-1" />
+        <!-- The container sets APP_ENV=dev in the real process environment, and
+             WebTestCase reads $_ENV before $_SERVER. Without forcing $_ENV too,
+             the kernel boots in dev and no when@test config applies. -->
+        <env name="APP_ENV" value="test" force="true" />
         <server name="APP_ENV" value="test" force="true" />
         <server name="SHELL_VERBOSITY" value="-1" />
     </php>
