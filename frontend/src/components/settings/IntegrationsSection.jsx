@@ -8,6 +8,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useAuth } from '@/contexts/AuthContext'
 
+const SYNC_COOLDOWN_SECONDS = 15
+
 const STATUS_LABELS = {
   connected: 'Connected',
   error: 'Needs attention',
@@ -41,6 +43,11 @@ export default function IntegrationsSection()
 
   const [disconnect_target, set_disconnect_target] = useState(null)
 
+  // Cooldown per provider key, in seconds. Stops the Sync button from queueing
+  // a job on every click; the backend throttles it too, this is just the guard
+  // the user can see.
+  const [cooldowns, set_cooldowns] = useState({})
+
   const load_providers = async () =>
   {
     try
@@ -68,6 +75,39 @@ export default function IntegrationsSection()
   {
     load_providers()
   }, [])
+
+  useEffect(() =>
+  {
+    if (0 === Object.keys(cooldowns).length)
+    {
+      return
+    }
+
+    const timer = window.setInterval(() =>
+    {
+      set_cooldowns((current) =>
+      {
+        const next = {}
+
+        Object.entries(current).forEach(([key, seconds]) =>
+        {
+          if (seconds > 1)
+          {
+            next[key] = seconds - 1
+          }
+        })
+
+        return next
+      })
+    }, 1000)
+
+    return () => window.clearInterval(timer)
+  }, [cooldowns])
+
+  const start_cooldown = (key, seconds) =>
+  {
+    set_cooldowns((current) => ({ ...current, [key]: seconds }))
+  }
 
   const open_connect = (provider) =>
   {
@@ -120,6 +160,11 @@ export default function IntegrationsSection()
 
   const handle_sync = async (provider) =>
   {
+    if (busy_key === provider.key || cooldowns[provider.key])
+    {
+      return
+    }
+
     set_busy_key(provider.key)
     set_error('')
     set_success('')
@@ -131,11 +176,22 @@ export default function IntegrationsSection()
         { method: 'POST' },
       )
 
+      const data = await response.json().catch(() => ({}))
+
+      if (429 === response.status)
+      {
+        start_cooldown(provider.key, data.retry_after ?? 30)
+        set_error(data.error ?? 'Too many sync requests. Try again shortly.')
+
+        return
+      }
+
       if (!response.ok)
       {
         throw new Error('Could not queue a sync.')
       }
 
+      start_cooldown(provider.key, SYNC_COOLDOWN_SECONDS)
       set_success('Sync queued.')
       window.setTimeout(load_providers, 2500)
     }
@@ -151,6 +207,11 @@ export default function IntegrationsSection()
 
   const handle_test = async (provider) =>
   {
+    if (busy_key === provider.key || cooldowns[provider.key])
+    {
+      return
+    }
+
     set_busy_key(provider.key)
     set_error('')
     set_success('')
@@ -162,7 +223,15 @@ export default function IntegrationsSection()
         { method: 'POST' },
       )
 
-      const data = await response.json()
+      const data = await response.json().catch(() => ({}))
+
+      if (429 === response.status)
+      {
+        start_cooldown(provider.key, data.retry_after ?? 30)
+        set_error(data.error ?? 'Too many requests. Try again shortly.')
+
+        return
+      }
 
       if (data.ok)
       {
@@ -330,7 +399,7 @@ export default function IntegrationsSection()
                       <Button
                         variant="outline"
                         size="sm"
-                        disabled={busy_key === provider.key}
+                        disabled={busy_key === provider.key || Boolean(cooldowns[provider.key])}
                         onClick={() => handle_test(provider)}
                       >
                         Test
@@ -338,11 +407,18 @@ export default function IntegrationsSection()
                       <Button
                         variant="outline"
                         size="sm"
-                        disabled={busy_key === provider.key}
+                        disabled={busy_key === provider.key || Boolean(cooldowns[provider.key])}
                         onClick={() => handle_sync(provider)}
                       >
-                        <RefreshCw className="size-3.5" aria-hidden="true" />
-                        Sync now
+                        <RefreshCw
+                          className={`size-3.5 ${busy_key === provider.key ? 'animate-spin' : ''}`}
+                          aria-hidden="true"
+                        />
+                        {cooldowns[provider.key]
+                          ? `Wait ${cooldowns[provider.key]}s`
+                          : busy_key === provider.key
+                            ? 'Syncing…'
+                            : 'Sync now'}
                       </Button>
                       <Button
                         variant="ghost"
