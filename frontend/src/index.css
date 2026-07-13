@@ -1,161 +1,239 @@
 /* Font Definitions - MUST be first */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
 @import "tailwindcss";
 
 @custom-variant dark (&:is(.dark *));
 
-@layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
-    --radius: 0.5rem;
-  }
+/* ==========================================================================
+   Pryvora design tokens — "calm archive"
+   Warm paper, one accent. Every colour in the app resolves from this block.
+   --accent is the single knob: change it and the whole product re-tints.
+   ========================================================================== */
 
-  .dark {
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 14.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
-  }
+:root {
+  /* surfaces */
+  --paper: #f3f1ea;
+  --panel: #fffdf8;
+  --panel-sunk: #eeece4;
+
+  /* text */
+  --ink: #1b1813;
+  --dim: #6f6a61;
+  --faint: #a49d92;
+  --on-accent: #ffffff;
+
+  /* lines — borders, not shadows */
+  --line: rgba(30, 24, 16, 0.10);
+  --line2: rgba(30, 24, 16, 0.055);
+
+  /* accent + status */
+  --accent: #1f7a5b;
+  --up: var(--accent);
+  --down: #c0473a;
+
+  /* categorical — charts, tags, avatars. never semantic */
+  --gold: #c19a4b;
+  --clay: #b56a44;
+  --sage: #8b9a8f;
+  --violet: #7c5cff;
+
+  /* Vora is the one deliberately inverted panel. It must stay dark in BOTH
+     themes — reusing --ink/--paper here would flip it into itself and make the
+     panel invisible in dark mode. */
+  --vora-surface: #1b1813;
+  --vora-ink: #f3f1ea;
+
+  /* geometry */
+  --radius-panel: 18px;
+  --radius-row: 11px;
+  --radius-tile: 9px;
+  --radius-pill: 20px;
+  --radius: 0.6875rem; /* shadcn base = --radius-row */
+}
+
+.dark {
+  --paper: #14120f;
+  --panel: #1c1a16;
+  --panel-sunk: #100e0c;
+
+  --ink: #f0ece3;
+  --dim: #a49d92;
+  --faint: #6f6a61;
+  --on-accent: #ffffff;
+
+  --line: rgba(240, 236, 227, 0.12);
+  --line2: rgba(240, 236, 227, 0.06);
+
+  --accent: #2f9c76;
+  --up: var(--accent);
+  --down: #d4604f;
+
+  --gold: #d0ac60;
+  --clay: #c67d56;
+  --sage: #9aa89e;
+  --violet: #9179ff;
+
+  /* Raised slightly off the dark page so the panel still reads as its own object. */
+  --vora-surface: #24211b;
+  --vora-ink: #f0ece3;
+}
+
+/* Map the design tokens AND the shadcn contract onto one palette, so every
+   primitive in components/ui inherits the identity without being touched. */
+@theme inline {
+  --color-paper: var(--paper);
+  --color-panel: var(--panel);
+  --color-panel-sunk: var(--panel-sunk);
+  --color-ink: var(--ink);
+  --color-dim: var(--dim);
+  --color-faint: var(--faint);
+  --color-line: var(--line);
+  --color-line2: var(--line2);
+  --color-accent: var(--accent);
+  --color-on-accent: var(--on-accent);
+  --color-up: var(--up);
+  --color-down: var(--down);
+  --color-gold: var(--gold);
+  --color-clay: var(--clay);
+  --color-sage: var(--sage);
+  --color-violet: var(--violet);
+  --color-vora-surface: var(--vora-surface);
+  --color-vora-ink: var(--vora-ink);
+
+  /* shadcn semantic names */
+  --color-background: var(--paper);
+  --color-foreground: var(--ink);
+  --color-card: var(--panel);
+  --color-card-foreground: var(--ink);
+  --color-popover: var(--panel);
+  --color-popover-foreground: var(--ink);
+  --color-primary: var(--accent);
+  --color-primary-foreground: var(--on-accent);
+  --color-secondary: var(--panel-sunk);
+  --color-secondary-foreground: var(--ink);
+  --color-muted: var(--panel-sunk);
+  --color-muted-foreground: var(--dim);
+  --color-accent-foreground: var(--on-accent);
+  --color-destructive: var(--down);
+  --color-destructive-foreground: var(--on-accent);
+  --color-border: var(--line);
+  --color-input: var(--line);
+  --color-ring: var(--accent);
+
+  --font-sans: 'Onest', system-ui, -apple-system, sans-serif;
+  --font-mono: 'Space Grotesk', ui-monospace, monospace;
+
+  --radius-panel: var(--radius-panel);
+  --radius-row: var(--radius-row);
+  --radius-tile: var(--radius-tile);
+  --radius-pill: var(--radius-pill);
 }
 
 @layer base {
   * {
-    border-color: hsl(var(--border));
+    border-color: var(--line);
   }
+
   body {
-    background-color: hsl(var(--background));
-    color: hsl(var(--foreground));
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
     margin: 0;
+    background-color: var(--paper);
+    color: var(--ink);
+    font-family: 'Onest', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
   }
-  
-  /* Font Classes */
-  .font-headline {
-    font-family: 'Manrope', system-ui, -apple-system, sans-serif;
+
+  /* One focus ring for the whole app. */
+  :focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+    outline-offset: 2px;
   }
-  
-  .font-body {
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+
+  ::selection {
+    background: color-mix(in srgb, var(--accent) 22%, transparent);
   }
-  
-  .font-label {
-    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+
+  /* Tailwind v4's Preflight dropped the v3 `button { cursor: pointer }`, so every
+     button falls back to the UA arrow. Restore it once, here, rather than on each
+     call site — this also covers the Radix primitives that render a div with an
+     interactive role instead of a real button. Utilities still win over @layer base,
+     so an explicit cursor-* class on a component keeps overriding this. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="option"],
+  [role="menuitem"],
+  [role="tab"],
+  a[href],
+  label[for],
+  summary,
+  select:not(:disabled),
+  input[type="checkbox"]:not(:disabled),
+  input[type="radio"]:not(:disabled),
+  input[type="color"]:not(:disabled),
+  input[type="file"],
+  input[type="submit"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  select:disabled,
+  input:disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
   }
 }
 
-:root {
-  --sidebar: hsl(0 0% 98%);
-  --sidebar-foreground: hsl(240 5.3% 26.1%);
-  --sidebar-primary: hsl(240 5.9% 10%);
-  --sidebar-primary-foreground: hsl(0 0% 98%);
-  --sidebar-accent: hsl(240 4.8% 95.9%);
-  --sidebar-accent-foreground: hsl(240 5.9% 10%);
-  --sidebar-border: hsl(220 13% 91%);
-  --sidebar-ring: hsl(217.2 91.2% 59.8%);
+/* All numerals — tabular so columns of figures align. */
+.num {
+  font-family: 'Space Grotesk', ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
 }
 
-.dark {
-  --sidebar: hsl(240 5.9% 10%);
-  --sidebar-foreground: hsl(240 4.8% 95.9%);
-  --sidebar-primary: hsl(224.3 76.3% 48%);
-  --sidebar-primary-foreground: hsl(0 0% 100%);
-  --sidebar-accent: hsl(240 3.7% 15.9%);
-  --sidebar-accent-foreground: hsl(240 4.8% 95.9%);
-  --sidebar-border: hsl(240 3.7% 15.9%);
-  --sidebar-ring: hsl(217.2 91.2% 59.8%);
+/* Section label: the design's recurring eyebrow. */
+.eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
 }
 
-@theme inline {
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
+/* Panel: border, never shadow. */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
 }
 
-/* Custom scrollbar for search results */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
+@keyframes rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
 }
 
-.custom-scrollbar::-webkit-scrollbar-track {
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.3; }
+}
+
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #2a2a2a;
-  border-radius: 3px;
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--ink) 16%, transparent);
+  border-radius: 20px;
+  border: 3px solid transparent;
+  background-clip: content-box;
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #3a3a3a;
-}
-
-/* Obsidian Background Gradient */
-.obsidian-bg {
-  background: radial-gradient(circle at top right, #1c1b1b 0%, #131313 100%);
-}
-
-/* Glass Card Effect */
-.glass-card {
-  background: rgba(42, 42, 42, 0.4);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-/* Primary Glow Button */
-.primary-glow-btn {
-  background: linear-gradient(135deg, #818cf8 0%, #bdc2ff 100%);
-  box-shadow: 0 4px 20px rgba(129, 140, 248, 0.4);
-  transition: all 0.2s ease;
-}
-
-.primary-glow-btn:hover {
-  box-shadow: 0 6px 24px rgba(129, 140, 248, 0.5);
-  transform: translateY(-1px);
-}
-
-.primary-glow-btn:active {
-  transform: translateY(0);
-  box-shadow: 0 2px 12px rgba(129, 140, 248, 0.3);
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
 }
 
 /* Respect reduced motion preferences */
@@ -169,5 +247,3 @@
     scroll-behavior: auto !important;
   }
 }
-
-

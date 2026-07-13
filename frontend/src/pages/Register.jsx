@@ -1,11 +1,16 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { AlertCircle, Lock } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { cn } from '@/lib/utils'
+import { use_reduced_motion } from '@/hooks/use-reduced-motion.js'
+
+const field_class = 'h-11 w-full rounded-[11px] border border-line bg-panel-sunk px-3.5 text-[15px] text-ink shadow-none placeholder:text-faint disabled:opacity-50'
+
+const submit_class = 'h-11 w-full rounded-[11px] bg-accent text-[14px] font-bold text-on-accent shadow-none transition-opacity hover:bg-accent hover:opacity-90'
 
 export default function Register()
 {
@@ -18,6 +23,15 @@ export default function Register()
   const [loading, set_loading] = useState(false)
   const { register } = useAuth()
   const navigate = useNavigate()
+  const reduced_motion = use_reduced_motion()
+
+  const rise = reduced_motion
+    ? {}
+    : {
+      initial: { opacity: 0, y: 8 },
+      animate: { opacity: 1, y: 0 },
+      transition: { duration: 0.35, ease: [0.22, 1, 0.36, 1] },
+    }
 
   const handle_submit = async (e) =>
   {
@@ -60,182 +74,149 @@ export default function Register()
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#131313] p-6 obsidian-bg selection:bg-[#818cf8] selection:text-[#131e8c]">
-      <motion.main
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-        className="w-full max-w-[440px] flex flex-col items-center"
-      >
-        {/* Branding Header */}
-        <motion.header
-          className="mb-12 text-center"
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.1 }}
-        >
-          <h1 className="font-headline font-black text-[2.75rem] leading-none tracking-tighter text-[#e5e2e1] mb-2">
-            Pryvora
+    <div className="flex min-h-screen items-center justify-center bg-paper px-5 py-10">
+      <motion.main {...rise} className="w-full max-w-[420px]">
+
+        <div className="mb-8 flex items-center justify-center gap-2.5">
+          <span className="grid h-9 w-9 place-items-center rounded-lg bg-ink text-[19px] font-bold text-paper">P</span>
+          <span className="text-[24px] font-bold tracking-[-0.01em] text-ink">Pryvora</span>
+        </div>
+
+        <div className="panel p-6 sm:p-8">
+          <p className="eyebrow mb-2">New account</p>
+          <h1 className="text-[22px] font-bold tracking-[-0.01em] text-ink">
+            Create your archive
           </h1>
-          <p className="font-label text-[#c6c5d5] text-[0.625rem] uppercase tracking-[0.2em]">
-            Privacy-First Personal Hub
+          <p className="mt-1.5 text-[14px] leading-relaxed text-dim">
+            One account for your notes, tasks and calendar. It stays on your server.
           </p>
-        </motion.header>
 
-        {/* Register Card */}
-        <motion.div
-          className="w-full glass-card rounded-xl p-10 relative"
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.4, delay: 0.2 }}
-        >
-          {/* Form Header */}
-          <div className="mb-8">
-            <h2 className="font-headline text-[1.75rem] font-bold tracking-tight text-[#e5e2e1] mb-2">
-              Create Account
-            </h2>
-            <p className="text-[#c6c5d5] text-[0.9375rem]">
-              Start organizing your personal data
-            </p>
-          </div>
-
-          {/* Register Form */}
-          <form onSubmit={handle_submit} className="space-y-6">
-            {/* Error Message */}
+          <form onSubmit={handle_submit} className="mt-7 space-y-5">
             {error && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="p-4 rounded-lg bg-red-500/10 border border-red-500/20"
+              <div
+                role="alert"
+                className="flex items-start gap-2.5 rounded-[11px] border p-3.5"
+                style={{
+                  borderColor: 'color-mix(in srgb, var(--down) 30%, transparent)',
+                  background: 'color-mix(in srgb, var(--down) 8%, transparent)',
+                }}
               >
-                <p className="text-sm text-red-400">{error}</p>
-              </motion.div>
+                <AlertCircle className="mt-px h-4 w-4 flex-none text-down"/>
+                <p className="text-[13px] leading-snug text-down">{error}</p>
+              </div>
             )}
 
-            {/* Name Fields */}
-            <div className="space-y-2">
-              <Label htmlFor="first_name" className="font-label text-[0.6875rem] font-semibold text-[#c6c5d5] uppercase tracking-wider ml-1 block mb-2">
-                First Name
-              </Label>
-              <Input
-                id="first_name"
-                type="text"
-                placeholder="John"
-                value={first_name}
-                onChange={(e) => set_first_name(e.target.value)}
-                disabled={loading}
-                className="w-full bg-[#0e0e0e] border-none rounded-lg py-4 px-5 text-[#e5e2e1] placeholder:text-[#c6c5d5]/30 focus:ring-1 focus:ring-[#818cf8]/50 transition-all outline-none disabled:opacity-50"
-              />
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="first_name" className="eyebrow mb-2 block">
+                  First name
+                </Label>
+                <Input
+                  id="first_name"
+                  type="text"
+                  autoComplete="given-name"
+                  placeholder="Ada"
+                  value={first_name}
+                  onChange={(e) => set_first_name(e.target.value)}
+                  disabled={loading}
+                  className={field_class}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="last_name" className="eyebrow mb-2 block">
+                  Last name
+                </Label>
+                <Input
+                  id="last_name"
+                  type="text"
+                  autoComplete="family-name"
+                  placeholder="Lovelace"
+                  value={last_name}
+                  onChange={(e) => set_last_name(e.target.value)}
+                  disabled={loading}
+                  className={field_class}
+                />
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="last_name" className="font-label text-[0.6875rem] font-semibold text-[#c6c5d5] uppercase tracking-wider ml-1 block mb-2">
-                Last Name
-              </Label>
-              <Input
-                id="last_name"
-                type="text"
-                placeholder="Doe"
-                value={last_name}
-                onChange={(e) => set_last_name(e.target.value)}
-                disabled={loading}
-                className="w-full bg-[#0e0e0e] border-none rounded-lg py-4 px-5 text-[#e5e2e1] placeholder:text-[#c6c5d5]/30 focus:ring-1 focus:ring-[#818cf8]/50 transition-all outline-none disabled:opacity-50"
-              />
-            </div>
-
-            {/* Email Field */}
-            <div className="space-y-2">
-              <Label htmlFor="email" className="font-label text-[0.6875rem] font-semibold text-[#c6c5d5] uppercase tracking-wider ml-1 block mb-2">
+            <div>
+              <Label htmlFor="email" className="eyebrow mb-2 block">
                 Email
               </Label>
               <Input
                 id="email"
                 type="email"
+                autoComplete="email"
                 placeholder="you@example.com"
                 value={email}
                 onChange={(e) => set_email(e.target.value)}
                 disabled={loading}
-                className="w-full bg-[#0e0e0e] border-none rounded-lg py-4 px-5 text-[#e5e2e1] placeholder:text-[#c6c5d5]/30 focus:ring-1 focus:ring-[#818cf8]/50 transition-all outline-none disabled:opacity-50"
+                className={field_class}
               />
             </div>
 
-            {/* Password Fields */}
-            <div className="space-y-2">
-              <Label htmlFor="password" className="font-label text-[0.6875rem] font-semibold text-[#c6c5d5] uppercase tracking-wider ml-1 block mb-2">
+            <div>
+              <Label htmlFor="password" className="eyebrow mb-2 block">
                 Password
               </Label>
               <Input
                 id="password"
                 type="password"
+                autoComplete="new-password"
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => set_password(e.target.value)}
                 disabled={loading}
-                className="w-full bg-[#0e0e0e] border-none rounded-lg py-4 px-5 text-[#e5e2e1] placeholder:text-[#c6c5d5]/30 focus:ring-1 focus:ring-[#818cf8]/50 transition-all outline-none disabled:opacity-50"
+                aria-describedby="password_hint"
+                className={field_class}
               />
+              <p id="password_hint" className="mt-2 text-[12px] text-faint">
+                At least 6 characters.
+              </p>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password_confirmation" className="font-label text-[0.6875rem] font-semibold text-[#c6c5d5] uppercase tracking-wider ml-1 block mb-2">
-                Confirm Password
+            <div>
+              <Label htmlFor="password_confirmation" className="eyebrow mb-2 block">
+                Confirm password
               </Label>
               <Input
                 id="password_confirmation"
                 type="password"
+                autoComplete="new-password"
                 placeholder="••••••••"
                 value={password_confirmation}
                 onChange={(e) => set_password_confirmation(e.target.value)}
                 disabled={loading}
-                className="w-full bg-[#0e0e0e] border-none rounded-lg py-4 px-5 text-[#e5e2e1] placeholder:text-[#c6c5d5]/30 focus:ring-1 focus:ring-[#818cf8]/50 transition-all outline-none disabled:opacity-50"
+                className={field_class}
               />
             </div>
 
-            {/* Submit Action */}
             <Button
               type="submit"
-              className="w-full primary-glow-btn text-white font-headline font-bold py-4 rounded-lg transition-transform active:scale-[0.98] mt-2"
               disabled={loading}
+              className={submit_class}
             >
-              {loading ? 'Creating account...' : 'Create Account'}
+              {loading ? 'Creating account…' : 'Create account'}
             </Button>
-
-            {/* Separator */}
-            <div className="my-6 h-px bg-[#2a2a2a]"></div>
-
-            {/* Footer Links */}
-            <div className="text-center text-sm text-[#888888]">
-              Already have an account?{' '}
-              <Link to="/login" className="underline text-[#e5e5e5]">
-                Sign in
-              </Link>
-            </div>
           </form>
-        </motion.div>
 
-        {/* System Status Footer */}
-        <motion.footer
-          className="mt-12 flex items-center gap-4"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.4, delay: 0.4 }}
-        >
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-[#10b981] shadow-[0_0_8px_rgba(78,222,163,0.6)]"></div>
-            <span className="text-[0.625rem] font-label uppercase tracking-[0.2em] text-[#c6c5d5]">System Operational</span>
+          <div className="mt-6 border-t border-line2 pt-5 text-center text-[14px] text-dim">
+            Already have an account?{' '}
+            <Link to="/login" className="font-semibold text-accent underline-offset-4 hover:underline">
+              Sign in
+            </Link>
           </div>
-          <div className="w-px h-3 bg-[#454653]/30"></div>
-          <div className="flex items-center gap-1 opacity-50">
-            <svg className="w-[14px] h-[14px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-            <span className="text-[0.625rem] font-label uppercase tracking-[0.2em] text-[#c6c5d5]">Your Data Stays Private</span>
-          </div>
-        </motion.footer>
+        </div>
+
+        <p className="mx-auto mt-7 flex max-w-[360px] items-start justify-center gap-2 text-[12px] leading-relaxed text-faint">
+          <Lock className="mt-0.5 h-3.5 w-3.5 flex-none"/>
+          <span>
+            Self-hosted. Your data is encrypted at rest with AES-256-GCM and passwords are
+            hashed with Argon2id — a database breach yields ciphertext.
+          </span>
+        </p>
       </motion.main>
-
-      {/* Abstract Background Elements */}
-      <div className="fixed top-[-10%] right-[-5%] w-[500px] h-[500px] bg-[#818cf8]/10 blur-[120px] rounded-full -z-10"></div>
-      <div className="fixed bottom-[-10%] left-[-5%] w-[400px] h-[400px] bg-[#10b981]/5 blur-[100px] rounded-full -z-10"></div>
     </div>
   )
 }

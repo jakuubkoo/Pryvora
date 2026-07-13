@@ -1,11 +1,46 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { AlertCircle, ArrowLeft, Lock } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
+import { use_reduced_motion } from '@/hooks/use-reduced-motion.js'
 import { cn } from '@/lib/utils'
+
+const field_class = 'h-11 w-full rounded-[11px] border border-line bg-panel-sunk px-3.5 text-[15px] text-ink shadow-none placeholder:text-faint disabled:opacity-50'
+
+const submit_class = 'h-11 w-full rounded-[11px] bg-accent text-[14px] font-bold text-on-accent shadow-none transition-opacity hover:bg-accent hover:opacity-90'
+
+const quiet_class = 'inline-flex items-center justify-center gap-1.5 rounded-[11px] px-3 py-2 text-[13px] font-semibold text-dim transition-colors hover:text-ink'
+
+function Wordmark()
+{
+  return (
+    <div className="flex items-center justify-center gap-2.5">
+      <span className="grid h-9 w-9 place-items-center rounded-lg bg-ink text-[19px] font-bold text-paper">P</span>
+      <span className="text-[24px] font-bold tracking-[-0.01em] text-ink">Pryvora</span>
+    </div>
+  )
+}
+
+function ErrorBox({ message })
+{
+  return (
+    <div
+      role="alert"
+      className="flex items-start gap-2.5 rounded-[11px] border p-3.5"
+      style={{
+        borderColor: 'color-mix(in srgb, var(--down) 30%, transparent)',
+        background: 'color-mix(in srgb, var(--down) 8%, transparent)',
+      }}
+    >
+      <AlertCircle className="mt-px h-4 w-4 flex-none text-down"/>
+      <p className="text-[13px] leading-snug text-down">{message}</p>
+    </div>
+  )
+}
 
 export default function Login()
 {
@@ -18,6 +53,15 @@ export default function Login()
   const [use_recovery_code, set_use_recovery_code] = useState(false)
   const { login, verify_2fa } = useAuth()
   const navigate = useNavigate()
+  const reduced_motion = use_reduced_motion()
+
+  const rise = reduced_motion
+    ? {}
+    : {
+      initial: { opacity: 0, y: 8 },
+      animate: { opacity: 1, y: 0 },
+      transition: { duration: 0.35, ease: [0.22, 1, 0.36, 1] },
+    }
 
   const handle_submit = async (e) =>
   {
@@ -71,33 +115,35 @@ export default function Login()
   if (requires_2fa)
   {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#131313] p-6 obsidian-bg">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-          className="w-full max-w-[440px]"
-        >
-          <div className="glass-card rounded-xl p-10 relative">
-            <div className="mb-8">
-              <h2 className="font-headline text-[1.75rem] font-bold tracking-tight text-[#e5e2e1] mb-2">
-                Two-Factor Authentication
-              </h2>
-              <p className="text-[#c6c5d5] text-[0.9375rem]">
-                {use_recovery_code
-                  ? 'Enter one of your recovery codes'
-                  : 'Enter the 6-digit code from your authenticator app'}
-              </p>
-            </div>
+      <div className="flex min-h-screen items-center justify-center bg-paper px-5 py-10">
+        <motion.main {...rise} className="w-full max-w-[420px]">
 
-            <form onSubmit={handle_2fa_submit} className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="otp" className="font-label text-[0.6875rem] font-semibold text-[#c6c5d5] uppercase tracking-wider ml-1 block mb-2">
-                  {use_recovery_code ? 'Recovery Code' : 'Verification Code'}
+          <div className="mb-8">
+            <Wordmark/>
+          </div>
+
+          <div className="panel p-6 sm:p-8">
+            <p className="eyebrow mb-2">Step 2 of 2</p>
+            <h1 className="text-[22px] font-bold tracking-[-0.01em] text-ink">
+              Two-factor authentication
+            </h1>
+            <p className="mt-1.5 text-[14px] leading-relaxed text-dim">
+              {use_recovery_code
+                ? 'Enter one of the recovery codes you saved when you set up two-factor.'
+                : 'Enter the 6-digit code from your authenticator app.'}
+            </p>
+
+            <form onSubmit={handle_2fa_submit} className="mt-7 space-y-5">
+              <div>
+                <Label htmlFor="otp" className="eyebrow mb-2 block">
+                  {use_recovery_code ? 'Recovery code' : 'Verification code'}
                 </Label>
                 <Input
                   id="otp"
                   type="text"
+                  autoFocus
+                  autoComplete="one-time-code"
+                  inputMode={use_recovery_code ? 'text' : 'numeric'}
                   placeholder={use_recovery_code ? 'XXXXXXXX' : '000000'}
                   value={otp_code}
                   onChange={(e) => {
@@ -112,205 +158,141 @@ export default function Login()
                   }}
                   required
                   maxLength={use_recovery_code ? 8 : 6}
-                  className="w-full bg-[#0e0e0e] border-none rounded-lg py-4 px-5 text-[#e5e2e1] placeholder:text-[#c6c5d5]/30 focus:ring-1 focus:ring-[#818cf8]/50 transition-all outline-none text-center text-[2rem] tracking-[0.3em]"
+                  className={cn(
+                    'num h-16 w-full rounded-[11px] border border-line bg-panel-sunk text-center text-ink shadow-none placeholder:text-faint',
+                    use_recovery_code
+                      ? 'text-[24px] tracking-[0.22em]'
+                      : 'text-[28px] tracking-[0.28em]'
+                  )}
                 />
               </div>
 
-              {error && (
-                <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/20">
-                  <p className="text-sm text-red-400">{error}</p>
-                </div>
-              )}
+              {error && <ErrorBox message={error}/>}
 
               <Button
                 type="submit"
                 disabled={loading || (use_recovery_code ? otp_code.length !== 8 : otp_code.length !== 6)}
-                className="w-full primary-glow-btn text-white font-headline font-bold py-4 rounded-lg transition-transform active:scale-[0.98] mt-2"
+                className={submit_class}
               >
-                {loading ? 'Verifying...' : 'Verify'}
+                {loading ? 'Verifying…' : 'Verify'}
               </Button>
 
-              <div className="flex flex-col gap-3 pt-2">
-                <Button
+              <div className="flex flex-col items-center gap-1 border-t border-line2 pt-4">
+                <button
                   type="button"
-                  variant="ghost"
                   onClick={() => {
                     set_use_recovery_code(!use_recovery_code)
                     set_otp_code('')
                     set_error('')
                   }}
-                  className="text-[#c6c5d5] hover:text-[#818cf8] transition-colors justify-center"
+                  className={quiet_class}
                 >
-                  {use_recovery_code ? 'Use authenticator code' : 'Use recovery code'}
-                </Button>
-                <Button
+                  {use_recovery_code ? 'Use authenticator code' : 'Use a recovery code'}
+                </button>
+                <button
                   type="button"
-                  variant="ghost"
                   onClick={() => {
                     set_requires_2fa(false)
                     set_use_recovery_code(false)
                     set_otp_code('')
                   }}
-                  className="text-[#c6c5d5] hover:text-[#e5e2e1] transition-colors justify-center"
+                  className={quiet_class}
                 >
+                  <ArrowLeft className="h-3.5 w-3.5"/>
                   Back to login
-                </Button>
+                </button>
               </div>
             </form>
           </div>
-        </motion.div>
+        </motion.main>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#131313] p-6 obsidian-bg selection:bg-[#818cf8] selection:text-[#131e8c]">
-      <motion.main
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-        className="w-full max-w-[440px] flex flex-col items-center"
-      >
-        {/* Branding Header */}
-        <motion.header
-          className="mb-12 text-center"
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, delay: 0.1 }}
-        >
-          <h1 className="font-headline font-black text-[2.75rem] leading-none tracking-tighter text-[#e5e2e1] mb-2">
-            Pryvora
+    <div className="flex min-h-screen items-center justify-center bg-paper px-5 py-10">
+      <motion.main {...rise} className="w-full max-w-[420px]">
+
+        <div className="mb-8">
+          <Wordmark/>
+        </div>
+
+        <div className="panel p-6 sm:p-8">
+          <p className="eyebrow mb-2">Sign in</p>
+          <h1 className="text-[22px] font-bold tracking-[-0.01em] text-ink">
+            Welcome back
           </h1>
-          <p className="font-label text-[#c6c5d5] text-[0.625rem] uppercase tracking-[0.2em]">
-            Privacy-First Personal Hub
+          <p className="mt-1.5 text-[14px] leading-relaxed text-dim">
+            Your notes, tasks and calendar — kept in one place, on your own server.
           </p>
-        </motion.header>
 
-        {/* Login Card */}
-        <motion.div
-          className="w-full glass-card rounded-xl p-10 relative"
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.4, delay: 0.2 }}
-        >
-          {/* Form Header */}
-          <div className="mb-8">
-            <h2 className="font-headline text-[1.75rem] font-bold tracking-tight text-[#e5e2e1] mb-2">
-              Welcome back
-            </h2>
-            <p className="text-[#c6c5d5] text-[0.9375rem]">
-              Your central hub for personal data
-            </p>
-          </div>
-
-          {/* Login Form */}
-          <form onSubmit={handle_submit} className="space-y-6">
-            {/* Email Field */}
-            <div className="space-y-2">
-              <Label htmlFor="email" className="font-label text-[0.6875rem] font-semibold text-[#c6c5d5] uppercase tracking-wider ml-1 block mb-2">
-                Email Address
+          <form onSubmit={handle_submit} className="mt-7 space-y-5">
+            <div>
+              <Label htmlFor="email" className="eyebrow mb-2 block">
+                Email address
               </Label>
-              <div className="relative">
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="name@company.com"
-                  value={email}
-                  onChange={(e) => set_email(e.target.value)}
-                  required
-                  disabled={loading}
-                  className="w-full bg-[#0e0e0e] border-none rounded-lg py-4 px-5 text-[#e5e2e1] placeholder:text-[#c6c5d5]/30 focus:ring-1 focus:ring-[#818cf8]/50 transition-all outline-none disabled:opacity-50"
-                />
-              </div>
+              <Input
+                id="email"
+                type="email"
+                autoComplete="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => set_email(e.target.value)}
+                required
+                disabled={loading}
+                className={field_class}
+              />
             </div>
 
-            {/* Password Field */}
-            <div className="space-y-2">
-              <div className="flex justify-between items-center ml-1 mb-2">
-                <Label htmlFor="password" className="font-label text-[0.6875rem] font-semibold text-[#c6c5d5] uppercase tracking-wider">
+            <div>
+              <div className="mb-2 flex items-baseline justify-between gap-3">
+                <Label htmlFor="password" className="eyebrow">
                   Password
                 </Label>
-                <a
-                  href="#"
-                  className="text-[#818cf8] text-[0.6875rem] font-semibold hover:text-[#bdc2ff] transition-colors"
-                  onClick={(e) => e.preventDefault()}
-                >
-                  Forgot password?
-                </a>
+                <span className="text-[11px] font-semibold text-faint">
+                  Reset not available yet
+                </span>
               </div>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => set_password(e.target.value)}
-                  required
-                  disabled={loading}
-                  className="w-full bg-[#0e0e0e] border-none rounded-lg py-4 px-5 text-[#e5e2e1] placeholder:text-[#c6c5d5]/30 focus:ring-1 focus:ring-[#818cf8]/50 transition-all outline-none disabled:opacity-50"
-                />
-              </div>
+              <Input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => set_password(e.target.value)}
+                required
+                disabled={loading}
+                className={field_class}
+              />
             </div>
 
-            {/* Error Message */}
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="p-4 rounded-lg bg-red-500/10 border border-red-500/20"
-              >
-                <p className="text-sm text-red-400">{error}</p>
-              </motion.div>
-            )}
+            {error && <ErrorBox message={error}/>}
 
-            {/* Submit Action */}
             <Button
               type="submit"
               disabled={loading}
-              className={cn(
-                'w-full primary-glow-btn text-white font-headline font-bold py-4 rounded-lg transition-transform active:scale-[0.98] mt-2',
-                loading && 'opacity-70 cursor-not-allowed'
-              )}
+              className={submit_class}
             >
-              {loading ? 'Signing in...' : 'Login'}
+              {loading ? 'Signing in…' : 'Sign in'}
             </Button>
           </form>
 
-          {/* Footer Links */}
-          <div className="mt-8 text-center">
-            <p className="text-[#c6c5d5] text-[0.9375rem]">
-              Don't have an account?
-              <Link to="/register" className="text-[#e5e2e1] font-semibold hover:text-[#818cf8] transition-colors ml-1">
-                Create an account
-              </Link>
-            </p>
+          <div className="mt-6 border-t border-line2 pt-5 text-center text-[14px] text-dim">
+            Don&apos;t have an account?{' '}
+            <Link to="/register" className="font-semibold text-accent underline-offset-4 hover:underline">
+              Create one
+            </Link>
           </div>
-        </motion.div>
+        </div>
 
-        {/* System Status Footer */}
-        <motion.footer
-          className="mt-12 flex items-center gap-4"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.4, delay: 0.4 }}
-        >
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-[#10b981] shadow-[0_0_8px_rgba(78,222,163,0.6)]"></div>
-            <span className="text-[0.625rem] font-label uppercase tracking-[0.2em] text-[#c6c5d5]">System Operational</span>
-          </div>
-          <div className="w-px h-3 bg-[#454653]/30"></div>
-          <div className="flex items-center gap-1 opacity-50">
-            <svg className="w-[14px] h-[14px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-            <span className="text-[0.625rem] font-label uppercase tracking-[0.2em] text-[#c6c5d5]">Your Data Stays Private</span>
-          </div>
-        </motion.footer>
+        <p className="mx-auto mt-7 flex max-w-[360px] items-start justify-center gap-2 text-[12px] leading-relaxed text-faint">
+          <Lock className="mt-0.5 h-3.5 w-3.5 flex-none"/>
+          <span>
+            Self-hosted. Your data is encrypted at rest with AES-256-GCM and passwords are
+            hashed with Argon2id — a database breach yields ciphertext.
+          </span>
+        </p>
       </motion.main>
-
-      {/* Abstract Background Elements */}
-      <div className="fixed top-[-10%] right-[-5%] w-[500px] h-[500px] bg-[#818cf8]/10 blur-[120px] rounded-full -z-10"></div>
-      <div className="fixed bottom-[-10%] left-[-5%] w-[400px] h-[400px] bg-[#10b981]/5 blur-[100px] rounded-full -z-10"></div>
     </div>
   )
 }

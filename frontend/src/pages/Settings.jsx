@@ -1,18 +1,120 @@
 import { useState, useEffect } from 'react'
-import { Edit, Trash2 } from 'lucide-react'
+import { motion } from 'framer-motion'
+import {
+  Check,
+  Copy,
+  Download,
+  KeyRound,
+  Lock,
+  Moon,
+  Pencil,
+  QrCode,
+  Server,
+  Shield,
+  ShieldCheck,
+  Sun,
+  Tags,
+  Trash2,
+  TriangleAlert,
+} from 'lucide-react'
 import AppLayout from '@/components/layout/AppLayout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Separator } from '@/components/ui/separator'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Badge } from '@/components/ui/badge'
-import { Alert, AlertDescription } from '@/components/ui/alert'
 import { useAuth } from '@/contexts/AuthContext'
+import { useTheme } from '@/components/theme-provider'
+import { use_reduced_motion } from '@/hooks/use-reduced-motion.js'
+
+const TONES = {
+  accent: {
+    background: 'color-mix(in srgb, var(--accent) 10%, transparent)',
+    borderColor: 'color-mix(in srgb, var(--accent) 26%, transparent)',
+    color: 'var(--accent)',
+  },
+  down: {
+    background: 'color-mix(in srgb, var(--down) 10%, transparent)',
+    borderColor: 'color-mix(in srgb, var(--down) 26%, transparent)',
+    color: 'var(--down)',
+  },
+  gold: {
+    background: 'color-mix(in srgb, var(--gold) 13%, transparent)',
+    borderColor: 'color-mix(in srgb, var(--gold) 30%, transparent)',
+    color: 'var(--gold)',
+  },
+}
+
+function StatusNote({ tone = 'accent', icon: Icon, children })
+{
+  const style = TONES[tone]
+
+  return (
+    <div
+      role="status"
+      className="flex items-start gap-2.5 rounded-[11px] border px-3.5 py-3 text-sm"
+      style={style}
+    >
+      {Icon && <Icon className="mt-0.5 size-4 shrink-0" aria-hidden="true"/>}
+      <span className="min-w-0 leading-relaxed">{children}</span>
+    </div>
+  )
+}
+
+function PostureFact(props)
+{
+  const Icon = props.icon
+
+  return (
+    <li className="flex items-start gap-2.5">
+      <Icon className="mt-0.5 size-3.5 shrink-0 text-faint" aria-hidden="true"/>
+      <span className="text-[13px] leading-relaxed text-dim">{props.children}</span>
+    </li>
+  )
+}
+
+function SectionCard({ eyebrow, title, description, children, delay = 0, reduce_motion })
+{
+  const animation = reduce_motion
+    ? {}
+    : {
+        initial: { opacity: 0, y: 8 },
+        animate: { opacity: 1, y: 0 },
+        transition: { duration: 0.32, delay, ease: [0.22, 1, 0.36, 1] },
+      }
+
+  return (
+    <motion.div {...animation}>
+      <Card className="gap-5 rounded-[18px] border-line bg-panel shadow-none">
+        <CardHeader className="gap-1.5">
+          <span className="eyebrow">{eyebrow}</span>
+          <CardTitle className="text-[17px] font-semibold tracking-[-0.01em] text-ink">
+            {title}
+          </CardTitle>
+          <CardDescription className="text-[13px] text-dim">
+            {description}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {children}
+        </CardContent>
+      </Card>
+    </motion.div>
+  )
+}
+
+const THEME_OPTIONS = [
+  { value: 'light', label: 'Light', icon: Sun },
+  { value: 'dark', label: 'Dark', icon: Moon },
+]
 
 export default function Settings()
 {
   const { user, api_request } = useAuth()
+  const { theme, setTheme } = useTheme()
+  const reduce_motion = use_reduced_motion()
+
   const [two_factor_enabled, set_two_factor_enabled] = useState(false)
   const [loading, set_loading] = useState(false)
   const [error, set_error] = useState('')
@@ -26,6 +128,7 @@ export default function Settings()
   const [setup_step, set_setup_step] = useState(1)
   const [recovery_codes, set_recovery_codes] = useState([])
   const [show_recovery_codes_modal, set_show_recovery_codes_modal] = useState(false)
+  const [recovery_copied, set_recovery_copied] = useState(false)
 
   // Password change state
   const [current_password, set_current_password] = useState('')
@@ -146,6 +249,7 @@ export default function Settings()
       if (data.recovery_codes && data.recovery_codes.length > 0)
       {
         set_recovery_codes(data.recovery_codes)
+        set_recovery_copied(false)
         set_show_recovery_codes_modal(true)
       }
     }
@@ -235,6 +339,7 @@ export default function Settings()
   {
     const text = recovery_codes.join('\n')
     navigator.clipboard.writeText(text)
+    set_recovery_copied(true)
     set_success('Recovery codes copied to clipboard!')
     setTimeout(() => set_success(''), 3000)
   }
@@ -377,259 +482,357 @@ export default function Settings()
     set_show_delete_tag_modal(true)
   }
 
+  const step_labels = ['Scan', 'Secret', 'Verify']
+
   return (
-    <AppLayout title="Settings">
-      <div className="p-6 space-y-6">
-        <Card className="border-[#1a1a1a] bg-[#0f0f0f]">
-          <CardHeader>
-            <CardTitle className="text-[#e5e5e5]">Two-Factor Authentication</CardTitle>
-            <CardDescription className="text-[#888888]">
-              Add an extra layer of security to your account
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {error && (
-              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
-                <p className="text-sm text-red-400">{error}</p>
-              </div>
-            )}
-            {success && (
-              <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
-                <p className="text-sm text-green-400">{success}</p>
-              </div>
-            )}
+    <AppLayout>
+      <div className="space-y-8 pb-10">
+        <header className="space-y-1.5">
+          <h1 className="text-[29px] font-bold leading-tight tracking-[-0.025em] text-ink">
+            Settings
+          </h1>
+          <p className="text-sm text-dim">
+            Your account, your keys, your archive. Everything here stays on your server.
+          </p>
+        </header>
 
-            {!two_factor_enabled && (
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] lg:items-start">
+          <div className="space-y-6">
+            {/* Two-Factor Authentication */}
+            <SectionCard
+              eyebrow="Security"
+              title="Two-Factor Authentication"
+              description="Add a second key to your account with a time-based one-time password."
+              delay={0}
+              reduce_motion={reduce_motion}
+            >
               <div className="space-y-4">
-                <p className="text-sm text-[#888888]">
-                  Two-factor authentication is currently disabled. Enable it to secure your account with a time-based one-time password (TOTP).
-                </p>
-                <Button
-                  onClick={handle_setup_2fa}
-                  disabled={loading}
-                  className="bg-[#e5e5e5] text-[#0a0a0a] hover:bg-[#d4d4d4]"
-                >
-                  {loading ? 'Setting up...' : 'Enable 2FA'}
-                </Button>
-              </div>
-            )}
+                {error && (
+                  <StatusNote tone="down" icon={TriangleAlert}>{error}</StatusNote>
+                )}
+                {success && (
+                  <StatusNote tone="accent" icon={Check}>{success}</StatusNote>
+                )}
 
-            {two_factor_enabled && (
-              <div className="space-y-4">
-                <div className="flex items-center gap-3 p-4 rounded-lg bg-green-500/10 border border-green-500/20">
-                  <div className="h-3 w-3 bg-green-500 rounded-full animate-pulse"></div>
-                  <div>
-                    <p className="text-sm font-medium text-green-400">Two-factor authentication is active</p>
-                    <p className="text-xs text-[#888888] mt-1">Your account is protected with TOTP</p>
+                {!two_factor_enabled && (
+                  <div className="space-y-4">
+                    <div className="flex items-start gap-3 rounded-[11px] border border-line2 bg-panel-sunk px-3.5 py-3">
+                      <Shield className="mt-0.5 size-4 shrink-0 text-faint" aria-hidden="true"/>
+                      <p className="text-[13px] leading-relaxed text-dim">
+                        Two-factor authentication is off. Turn it on and a code from your
+                        authenticator app will be required alongside your password.
+                      </p>
+                    </div>
+                    <Button onClick={handle_setup_2fa} disabled={loading}>
+                      {loading ? 'Setting up...' : 'Enable 2FA'}
+                    </Button>
+                  </div>
+                )}
+
+                {two_factor_enabled && (
+                  <div className="space-y-4">
+                    <div
+                      className="flex items-start gap-3 rounded-[11px] border px-3.5 py-3"
+                      style={TONES.accent}
+                    >
+                      <ShieldCheck className="mt-0.5 size-4 shrink-0" aria-hidden="true"/>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium">Two-factor authentication is on</p>
+                        <p className="mt-0.5 text-[13px] text-dim">
+                          Sign-in requires a TOTP code from your authenticator app.
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      onClick={() => set_show_disable_modal(true)}
+                      variant="outline"
+                      className="border-line text-down hover:bg-panel-sunk hover:text-down"
+                    >
+                      Disable 2FA
+                    </Button>
+                  </div>
+                )}
+
+                <Separator className="bg-line2"/>
+
+                <div className="space-y-2.5">
+                  <p className="eyebrow">How your data is held</p>
+                  <ul className="space-y-2">
+                    <PostureFact icon={Lock}>
+                      Entries are encrypted at rest with AES-256-GCM.
+                    </PostureFact>
+                    <PostureFact icon={KeyRound}>
+                      Passwords are hashed with Argon2id, never stored in the clear.
+                    </PostureFact>
+                    <PostureFact icon={Server}>
+                      Pryvora is self-hosted — the data never leaves your server.
+                    </PostureFact>
+                  </ul>
+                </div>
+              </div>
+            </SectionCard>
+
+            {/* Change Password */}
+            <SectionCard
+              eyebrow="Credentials"
+              title="Change Password"
+              description="Update the password used to unlock your account."
+              delay={0.06}
+              reduce_motion={reduce_motion}
+            >
+              <form onSubmit={handle_change_password} className="space-y-4">
+                {password_error && (
+                  <StatusNote tone="down" icon={TriangleAlert}>{password_error}</StatusNote>
+                )}
+                {password_success && (
+                  <StatusNote tone="accent" icon={Check}>{password_success}</StatusNote>
+                )}
+
+                <div className="space-y-2">
+                  <Label htmlFor="current_password" className="text-[13px] font-medium text-ink">
+                    Current password
+                  </Label>
+                  <Input
+                    id="current_password"
+                    type="password"
+                    value={current_password}
+                    onChange={(e) => set_current_password(e.target.value)}
+                    required
+                    autoComplete="current-password"
+                    className="h-10 rounded-[11px] border-line bg-panel-sunk text-ink placeholder:text-faint"
+                    placeholder="Enter your current password"
+                  />
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="new_password" className="text-[13px] font-medium text-ink">
+                      New password
+                    </Label>
+                    <Input
+                      id="new_password"
+                      type="password"
+                      value={new_password}
+                      onChange={(e) => set_new_password(e.target.value)}
+                      required
+                      autoComplete="new-password"
+                      className="h-10 rounded-[11px] border-line bg-panel-sunk text-ink placeholder:text-faint"
+                      placeholder="At least 6 characters"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="confirm_password" className="text-[13px] font-medium text-ink">
+                      Confirm new password
+                    </Label>
+                    <Input
+                      id="confirm_password"
+                      type="password"
+                      value={confirm_password}
+                      onChange={(e) => set_confirm_password(e.target.value)}
+                      required
+                      autoComplete="new-password"
+                      className="h-10 rounded-[11px] border-line bg-panel-sunk text-ink placeholder:text-faint"
+                      placeholder="Repeat the new password"
+                    />
                   </div>
                 </div>
-                <Button
-                  onClick={() => set_show_disable_modal(true)}
-                  variant="destructive"
-                  className="bg-red-600 hover:bg-red-700"
-                >
-                  Disable 2FA
+
+                <Button type="submit" disabled={password_loading}>
+                  {password_loading ? 'Changing password...' : 'Change password'}
                 </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              </form>
+            </SectionCard>
+          </div>
 
-        <Card className="border-[#1a1a1a] bg-[#0f0f0f]">
-          <CardHeader>
-            <CardTitle className="text-[#e5e5e5]">Change Password</CardTitle>
-            <CardDescription className="text-[#888888]">
-              Update your password to keep your account secure
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handle_change_password} className="space-y-4">
-              {password_error && (
-                <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
-                  <p className="text-sm text-red-400">{password_error}</p>
-                </div>
-              )}
-              {password_success && (
-                <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20">
-                  <p className="text-sm text-green-400">{password_success}</p>
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <Label htmlFor="current_password" className="text-sm text-[#e5e5e5]">
-                  Current Password
-                </Label>
-                <Input
-                  id="current_password"
-                  type="password"
-                  value={current_password}
-                  onChange={(e) => set_current_password(e.target.value)}
-                  required
-                  className="bg-[#1a1a1a] border-[#2a2a2a] text-[#e5e5e5] placeholder:text-[#666666]"
-                  placeholder="Enter your current password"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="new_password" className="text-sm text-[#e5e5e5]">
-                  New Password
-                </Label>
-                <Input
-                  id="new_password"
-                  type="password"
-                  value={new_password}
-                  onChange={(e) => set_new_password(e.target.value)}
-                  required
-                  className="bg-[#1a1a1a] border-[#2a2a2a] text-[#e5e5e5] placeholder:text-[#666666]"
-                  placeholder="Enter your new password"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="confirm_password" className="text-sm text-[#e5e5e5]">
-                  Confirm New Password
-                </Label>
-                <Input
-                  id="confirm_password"
-                  type="password"
-                  value={confirm_password}
-                  onChange={(e) => set_confirm_password(e.target.value)}
-                  required
-                  className="bg-[#1a1a1a] border-[#2a2a2a] text-[#e5e5e5] placeholder:text-[#666666]"
-                  placeholder="Confirm your new password"
-                />
-              </div>
-
-              <Button
-                type="submit"
-                disabled={password_loading}
-                className="bg-[#e5e5e5] text-[#0a0a0a] hover:bg-[#d4d4d4]"
+          <div className="space-y-6">
+            {/* Appearance */}
+            <SectionCard
+              eyebrow="Appearance"
+              title="Theme"
+              description="Warm paper by day, low light by night."
+              delay={0.12}
+              reduce_motion={reduce_motion}
+            >
+              <div
+                role="group"
+                aria-label="Theme"
+                className="flex gap-1 rounded-[11px] border border-line2 bg-panel-sunk p-1"
               >
-                {password_loading ? 'Changing Password...' : 'Change Password'}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+                {THEME_OPTIONS.map((option) =>
+                {
+                  const is_active = theme === option.value
+                  const Icon = option.icon
 
-        {/* Tags Management */}
-        <Card className="border-[#1a1a1a] bg-[#0f0f0f]">
-          <CardHeader>
-            <CardTitle className="text-[#e5e5e5]">Manage Tags</CardTitle>
-            <CardDescription className="text-[#888888]">
-              View, edit, and delete your tags
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {tag_success && (
-              <Alert className="mb-4 border-green-500/50 bg-green-500/10">
-                <AlertDescription className="text-green-400">
-                  {tag_success}
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {tag_error && (
-              <Alert className="mb-4 border-red-500/50 bg-red-500/10">
-                <AlertDescription className="text-red-400">
-                  {tag_error}
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {tags_loading ? (
-              <p className="text-sm text-[#888888]">Loading tags...</p>
-            ) : tags.length === 0 ? (
-              <p className="text-sm text-[#888888]">No tags created yet. Create tags when adding notes.</p>
-            ) : (
-              <div className="space-y-2">
-                {tags.map(tag => (
-                  <div
-                    key={tag.id}
-                    className="flex items-center justify-between p-3 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a]"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="size-6 rounded-full border border-[#2a2a2a]"
-                        style={{ backgroundColor: tag.color }}
-                      />
-                      <span className="text-sm text-[#e5e5e5]">{tag.name}</span>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={() => open_edit_tag_modal(tag)}
-                        variant="ghost"
-                        size="sm"
-                        className="text-[#888888] hover:text-[#e5e5e5]"
-                      >
-                        <Edit className="size-4"/>
-                      </Button>
-                      <Button
-                        onClick={() => open_delete_tag_modal(tag)}
-                        variant="ghost"
-                        size="sm"
-                        className="text-red-400 hover:text-red-300"
-                      >
-                        <Trash2 className="size-4"/>
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setTheme(option.value)}
+                      aria-pressed={is_active}
+                      className={`relative flex flex-1 items-center justify-center gap-2 rounded-[8px] px-3 py-2 text-[13px] font-medium transition-colors ${
+                        is_active ? 'text-ink' : 'text-dim hover:text-ink'
+                      }`}
+                    >
+                      {is_active && (
+                        <motion.span
+                          layoutId={reduce_motion ? undefined : 'theme_indicator'}
+                          transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                          className="absolute inset-0 rounded-[8px] border border-line bg-panel"
+                          aria-hidden="true"
+                        />
+                      )}
+                      <span className="relative flex items-center gap-2">
+                        <Icon className="size-4" aria-hidden="true"/>
+                        {option.label}
+                      </span>
+                    </button>
+                  )
+                })}
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </SectionCard>
+
+            {/* Manage Tags */}
+            <SectionCard
+              eyebrow="Library"
+              title="Manage Tags"
+              description="Rename, recolour, or retire the tags across your archive."
+              delay={0.18}
+              reduce_motion={reduce_motion}
+            >
+              <div className="space-y-4">
+                {tag_success && (
+                  <StatusNote tone="accent" icon={Check}>{tag_success}</StatusNote>
+                )}
+                {tag_error && (
+                  <StatusNote tone="down" icon={TriangleAlert}>{tag_error}</StatusNote>
+                )}
+
+                {tags_loading && tags.length === 0 ? (
+                  <div className="space-y-2" aria-busy="true" aria-live="polite">
+                    {[0, 1, 2].map((row) => (
+                      <div
+                        key={row}
+                        className="h-[52px] rounded-[11px] border border-line2 bg-panel-sunk"
+                        style={reduce_motion ? undefined : { animation: 'pulse 1.6s ease-in-out infinite', animationDelay: `${row * 0.12}s` }}
+                      />
+                    ))}
+                    <span className="sr-only">Loading tags</span>
+                  </div>
+                ) : tags.length === 0 ? (
+                  <div className="flex flex-col items-center gap-2 rounded-[11px] border border-dashed border-line bg-panel-sunk px-6 py-10 text-center">
+                    <Tags className="size-6 text-faint" aria-hidden="true"/>
+                    <p className="text-sm font-medium text-ink">No tags yet</p>
+                    <p className="max-w-[38ch] text-[13px] leading-relaxed text-dim">
+                      Tags appear here once you add them to a note. They are the shelves
+                      of your archive — create the first one while writing.
+                    </p>
+                  </div>
+                ) : (
+                  <ul className="space-y-2">
+                    {tags.map((tag) => (
+                      <li
+                        key={tag.id}
+                        className="flex items-center justify-between gap-3 rounded-[11px] border border-line2 bg-panel-sunk px-3 py-2.5"
+                      >
+                        <div className="flex min-w-0 items-center gap-3">
+                          <span
+                            className="size-3.5 shrink-0 rounded-full border border-line"
+                            style={{ backgroundColor: tag.color }}
+                            aria-hidden="true"
+                          />
+                          <span className="truncate text-sm text-ink">{tag.name}</span>
+                        </div>
+                        <div className="flex shrink-0 gap-1">
+                          <Button
+                            onClick={() => open_edit_tag_modal(tag)}
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={`Edit tag ${tag.name}`}
+                            className="text-dim hover:bg-panel hover:text-ink"
+                          >
+                            <Pencil className="size-4"/>
+                          </Button>
+                          <Button
+                            onClick={() => open_delete_tag_modal(tag)}
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={`Delete tag ${tag.name}`}
+                            className="text-dim hover:bg-panel hover:text-down"
+                          >
+                            <Trash2 className="size-4"/>
+                          </Button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </SectionCard>
+          </div>
+        </div>
       </div>
 
       {/* Setup 2FA Modal */}
       <Dialog open={show_setup_modal} onOpenChange={close_setup_modal}>
-        <DialogContent className="sm:max-w-[500px] bg-[#0f0f0f] border-[#1a1a1a]">
+        <DialogContent className="rounded-[18px] border-line bg-panel sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle className="text-[#e5e5e5] text-xl">Enable Two-Factor Authentication</DialogTitle>
-            <DialogDescription className="text-[#888888]">
-              Follow these steps to secure your account
+            <DialogTitle className="text-[19px] font-semibold tracking-[-0.015em] text-ink">
+              Enable Two-Factor Authentication
+            </DialogTitle>
+            <DialogDescription className="text-[13px] text-dim">
+              Three steps: scan, save the secret, verify.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-6 py-4">
+          <div className="space-y-6 py-2">
             {/* Progress Indicator */}
-            <div className="flex items-center justify-center gap-2">
-              <div className={`flex items-center justify-center w-8 h-8 rounded-full ${setup_step >= 1 ? 'bg-[#e5e5e5] text-[#0a0a0a]' : 'bg-[#1a1a1a] text-[#666666]'} text-sm font-medium`}>
-                1
-              </div>
-              <div className={`h-0.5 w-12 ${setup_step >= 2 ? 'bg-[#e5e5e5]' : 'bg-[#1a1a1a]'}`}></div>
-              <div className={`flex items-center justify-center w-8 h-8 rounded-full ${setup_step >= 2 ? 'bg-[#e5e5e5] text-[#0a0a0a]' : 'bg-[#1a1a1a] text-[#666666]'} text-sm font-medium`}>
-                2
-              </div>
-              <div className={`h-0.5 w-12 ${setup_step >= 3 ? 'bg-[#e5e5e5]' : 'bg-[#1a1a1a]'}`}></div>
-              <div className={`flex items-center justify-center w-8 h-8 rounded-full ${setup_step >= 3 ? 'bg-[#e5e5e5] text-[#0a0a0a]' : 'bg-[#1a1a1a] text-[#666666]'} text-sm font-medium`}>
-                3
-              </div>
-            </div>
+            <ol className="flex items-center justify-center gap-2" aria-label="Setup progress">
+              {[1, 2, 3].map((step, index) => (
+                <li key={step} className="flex items-center gap-2">
+                  {index > 0 && (
+                    <span
+                      className="h-px w-10 transition-colors"
+                      style={{ backgroundColor: setup_step >= step ? 'var(--accent)' : 'var(--line)' }}
+                      aria-hidden="true"
+                    />
+                  )}
+                  <span
+                    className="num flex size-8 items-center justify-center rounded-full border text-[13px] font-semibold transition-colors"
+                    style={setup_step >= step
+                      ? { background: 'var(--accent)', borderColor: 'var(--accent)', color: 'var(--on-accent)' }
+                      : { background: 'var(--panel-sunk)', borderColor: 'var(--line)', color: 'var(--faint)' }}
+                    aria-current={setup_step === step ? 'step' : undefined}
+                  >
+                    {step}
+                    <span className="sr-only"> {step_labels[index]}</span>
+                  </span>
+                </li>
+              ))}
+            </ol>
 
             {error && (
-              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
-                <p className="text-sm text-red-400">{error}</p>
-              </div>
+              <StatusNote tone="down" icon={TriangleAlert}>{error}</StatusNote>
             )}
 
             {/* Step 1: Scan QR Code */}
             {setup_step === 1 && (
               <div className="space-y-4">
-                <div className="text-center space-y-2">
-                  <h3 className="text-sm font-medium text-[#e5e5e5]">Step 1: Scan QR Code</h3>
-                  <p className="text-xs text-[#888888]">
-                    Use Google Authenticator, Authy, or any TOTP app
+                <div className="space-y-1 text-center">
+                  <h3 className="flex items-center justify-center gap-2 text-sm font-semibold text-ink">
+                    <QrCode className="size-4 text-faint" aria-hidden="true"/>
+                    Scan the QR code
+                  </h3>
+                  <p className="text-[13px] text-dim">
+                    Use Google Authenticator, Authy, or any TOTP app.
                   </p>
                 </div>
                 <div className="flex justify-center">
-                  <div className="bg-white p-4 rounded-lg">
-                    <img src={qr_code} alt="QR Code" className="w-56 h-56"/>
+                  <div className="rounded-[11px] border border-line bg-white p-4">
+                    <img src={qr_code} alt="Two-factor authentication QR code" className="size-48"/>
                   </div>
                 </div>
-                <Button
-                  onClick={() => set_setup_step(2)}
-                  className="w-full bg-[#e5e5e5] text-[#0a0a0a] hover:bg-[#d4d4d4]"
-                >
+                <Button onClick={() => set_setup_step(2)} className="w-full" autoFocus>
                   I've scanned the code
                 </Button>
               </div>
@@ -638,30 +841,29 @@ export default function Settings()
             {/* Step 2: Manual Entry */}
             {setup_step === 2 && (
               <div className="space-y-4">
-                <div className="text-center space-y-2">
-                  <h3 className="text-sm font-medium text-[#e5e5e5]">Step 2: Manual Entry (Optional)</h3>
-                  <p className="text-xs text-[#888888]">
-                    Can't scan? Enter this secret manually in your app
+                <div className="space-y-1 text-center">
+                  <h3 className="text-sm font-semibold text-ink">Set-up key (optional)</h3>
+                  <p className="text-[13px] text-dim">
+                    Can't scan? Enter this secret manually in your app.
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <code className="block bg-[#1a1a1a] p-4 rounded-lg text-[#e5e5e5] text-center text-sm break-all border border-[#2a2a2a]">
+                  <code className="num block break-all rounded-[11px] border border-line bg-panel-sunk p-4 text-center text-sm tracking-[0.08em] text-ink">
                     {secret}
                   </code>
-                  <p className="text-xs text-center text-[#666666]">Keep this secret safe and never share it</p>
+                  <p className="text-center text-xs text-faint">
+                    Keep this secret safe and never share it.
+                  </p>
                 </div>
                 <div className="flex gap-2">
                   <Button
                     onClick={() => set_setup_step(1)}
-                    variant="ghost"
-                    className="flex-1 text-[#888888] hover:text-[#e5e5e5]"
+                    variant="outline"
+                    className="flex-1 border-line text-dim hover:bg-panel-sunk hover:text-ink"
                   >
                     Back
                   </Button>
-                  <Button
-                    onClick={() => set_setup_step(3)}
-                    className="flex-1 bg-[#e5e5e5] text-[#0a0a0a] hover:bg-[#d4d4d4]"
-                  >
+                  <Button onClick={() => set_setup_step(3)} className="flex-1">
                     Continue
                   </Button>
                 </div>
@@ -671,21 +873,27 @@ export default function Settings()
             {/* Step 3: Verify */}
             {setup_step === 3 && (
               <form onSubmit={handle_enable_2fa} className="space-y-4">
-                <div className="text-center space-y-2">
-                  <h3 className="text-sm font-medium text-[#e5e5e5]">Step 3: Verify Code</h3>
-                  <p className="text-xs text-[#888888]">
-                    Enter the 6-digit code from your authenticator app
+                <div className="space-y-1 text-center">
+                  <h3 className="text-sm font-semibold text-ink">Verify the code</h3>
+                  <p className="text-[13px] text-dim">
+                    Enter the 6-digit code from your authenticator app.
                   </p>
                 </div>
                 <div className="space-y-2">
+                  <Label htmlFor="verification_code" className="sr-only">
+                    Six-digit verification code
+                  </Label>
                   <Input
+                    id="verification_code"
                     type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
                     placeholder="000000"
                     value={verification_code}
                     onChange={(e) => set_verification_code(e.target.value.replace(/\D/g, '').slice(0, 6))}
                     required
                     maxLength={6}
-                    className="bg-[#1a1a1a] border-[#2a2a2a] text-[#e5e5e5] placeholder:text-[#666666] text-center text-2xl tracking-widest"
+                    className="num h-14 rounded-[11px] border-line bg-panel-sunk text-center text-2xl tracking-[0.35em] text-ink placeholder:text-faint md:text-2xl"
                     autoFocus
                   />
                 </div>
@@ -693,15 +901,15 @@ export default function Settings()
                   <Button
                     type="button"
                     onClick={() => set_setup_step(2)}
-                    variant="ghost"
-                    className="flex-1 text-[#888888] hover:text-[#e5e5e5]"
+                    variant="outline"
+                    className="flex-1 border-line text-dim hover:bg-panel-sunk hover:text-ink"
                   >
                     Back
                   </Button>
                   <Button
                     type="submit"
                     disabled={loading || verification_code.length !== 6}
-                    className="flex-1 bg-[#e5e5e5] text-[#0a0a0a] hover:bg-[#d4d4d4]"
+                    className="flex-1"
                   >
                     {loading ? 'Verifying...' : 'Enable 2FA'}
                   </Button>
@@ -714,34 +922,40 @@ export default function Settings()
 
       {/* Disable 2FA Modal */}
       <Dialog open={show_disable_modal} onOpenChange={close_disable_modal}>
-        <DialogContent className="sm:max-w-[425px] bg-[#0f0f0f] border-[#1a1a1a]">
+        <DialogContent className="rounded-[18px] border-line bg-panel sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle className="text-[#e5e5e5]">Disable Two-Factor Authentication</DialogTitle>
-            <DialogDescription className="text-[#888888]">
-              Enter your verification code to disable 2FA
+            <DialogTitle className="text-[19px] font-semibold tracking-[-0.015em] text-ink">
+              Disable Two-Factor Authentication
+            </DialogTitle>
+            <DialogDescription className="text-[13px] text-dim">
+              Confirm with a current code to remove the second factor.
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handle_disable_2fa} className="space-y-4 py-4">
+          <form onSubmit={handle_disable_2fa} className="space-y-4">
             {error && (
-              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20">
-                <p className="text-sm text-red-400">{error}</p>
-              </div>
+              <StatusNote tone="down" icon={TriangleAlert}>{error}</StatusNote>
             )}
 
+            <StatusNote tone="gold" icon={TriangleAlert}>
+              Your account will be protected by password alone.
+            </StatusNote>
+
             <div className="space-y-2">
-              <Label htmlFor="disable_code" className="text-sm text-[#e5e5e5]">
-                Verification Code
+              <Label htmlFor="disable_code" className="text-[13px] font-medium text-ink">
+                Verification code
               </Label>
               <Input
                 id="disable_code"
                 type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
                 placeholder="000000"
                 value={disable_code}
                 onChange={(e) => set_disable_code(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 required
                 maxLength={6}
-                className="bg-[#1a1a1a] border-[#2a2a2a] text-[#e5e5e5] placeholder:text-[#666666] text-center text-xl tracking-widest"
+                className="num h-14 rounded-[11px] border-line bg-panel-sunk text-center text-xl tracking-[0.35em] text-ink placeholder:text-faint"
                 autoFocus
               />
             </div>
@@ -750,8 +964,8 @@ export default function Settings()
               <Button
                 type="button"
                 onClick={close_disable_modal}
-                variant="ghost"
-                className="flex-1 text-[#888888] hover:text-[#e5e5e5]"
+                variant="outline"
+                className="flex-1 border-line text-dim hover:bg-panel-sunk hover:text-ink"
               >
                 Cancel
               </Button>
@@ -759,7 +973,7 @@ export default function Settings()
                 type="submit"
                 disabled={loading || disable_code.length !== 6}
                 variant="destructive"
-                className="flex-1 bg-red-600 hover:bg-red-700"
+                className="flex-1"
               >
                 {loading ? 'Disabling...' : 'Disable 2FA'}
               </Button>
@@ -770,46 +984,46 @@ export default function Settings()
 
       {/* Recovery Codes Modal */}
       <Dialog open={show_recovery_codes_modal} onOpenChange={close_recovery_codes_modal}>
-        <DialogContent className="sm:max-w-[500px] bg-[#0f0f0f] border-[#1a1a1a]">
+        <DialogContent className="rounded-[18px] border-line bg-panel sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle className="text-[#e5e5e5]">Save Your Recovery Codes</DialogTitle>
-            <DialogDescription className="text-[#888888]">
-              Store these recovery codes in a safe place. Each code can only be used once.
+            <DialogTitle className="text-[19px] font-semibold tracking-[-0.015em] text-ink">
+              Save your recovery codes
+            </DialogTitle>
+            <DialogDescription className="text-[13px] text-dim">
+              Store these somewhere safe. Each code works exactly once, and they are the
+              only way back in if you lose your authenticator.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-4">
-            <div className="p-4 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a]">
-              <div className="grid grid-cols-2 gap-2 font-mono text-sm text-[#e5e5e5]">
-                {recovery_codes.map((code, index) => (
-                  <div key={index} className="p-2 bg-[#0a0a0a] rounded text-center">
-                    {code}
-                  </div>
-                ))}
-              </div>
-            </div>
+          <div className="space-y-4">
+            <ul className="grid grid-cols-2 gap-2 rounded-[11px] border border-line bg-panel-sunk p-3">
+              {recovery_codes.map((code, index) => (
+                <li
+                  key={index}
+                  className="num min-w-0 break-all rounded-[8px] border border-line2 bg-panel px-2 py-2 text-center text-[13px] tracking-wide text-ink"
+                >
+                  {code}
+                </li>
+              ))}
+            </ul>
 
-            <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
-              <p className="text-sm text-yellow-400">
-                ⚠️ These codes will only be shown once. Make sure to save them now!
-              </p>
-            </div>
+            <StatusNote tone="gold" icon={TriangleAlert}>
+              These codes are shown only once. Copy or download them before you close this window.
+            </StatusNote>
 
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
               <Button
                 type="button"
                 onClick={copy_recovery_codes}
                 variant="outline"
-                className="flex-1 border-[#2a2a2a] text-[#e5e5e5] hover:bg-[#1a1a1a]"
+                className="flex-1 border-line text-ink hover:bg-panel-sunk hover:text-ink"
               >
-                Copy Codes
+                {recovery_copied ? <Check className="size-4"/> : <Copy className="size-4"/>}
+                {recovery_copied ? 'Copied' : 'Copy codes'}
               </Button>
-              <Button
-                type="button"
-                onClick={download_recovery_codes}
-                className="flex-1 bg-[#e5e5e5] text-[#0a0a0a] hover:bg-[#d4d4d4]"
-              >
-                Download Codes
+              <Button type="button" onClick={download_recovery_codes} className="flex-1">
+                <Download className="size-4"/>
+                Download codes
               </Button>
             </div>
 
@@ -817,9 +1031,9 @@ export default function Settings()
               type="button"
               onClick={close_recovery_codes_modal}
               variant="ghost"
-              className="w-full text-[#888888] hover:text-[#e5e5e5]"
+              className="w-full text-dim hover:bg-panel-sunk hover:text-ink"
             >
-              I've Saved My Codes
+              I've saved my codes
             </Button>
           </div>
         </DialogContent>
@@ -827,70 +1041,68 @@ export default function Settings()
 
       {/* Edit Tag Modal */}
       <Dialog open={show_edit_tag_modal} onOpenChange={set_show_edit_tag_modal}>
-        <DialogContent className="sm:max-w-[425px] bg-[#0f0f0f] border-[#1a1a1a]">
+        <DialogContent className="rounded-[18px] border-line bg-panel sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle className="text-[#e5e5e5]">Edit Tag</DialogTitle>
-            <DialogDescription className="text-[#888888]">
-              Update the tag name and color
+            <DialogTitle className="text-[19px] font-semibold tracking-[-0.015em] text-ink">
+              Edit tag
+            </DialogTitle>
+            <DialogDescription className="text-[13px] text-dim">
+              Update the tag name and colour.
             </DialogDescription>
           </DialogHeader>
 
           <form onSubmit={handle_edit_tag} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="edit_tag_name" className="text-sm text-[#e5e5e5]">
-                Tag Name
+              <Label htmlFor="edit_tag_name" className="text-[13px] font-medium text-ink">
+                Tag name
               </Label>
               <Input
                 id="edit_tag_name"
                 value={edit_tag_name}
                 onChange={(e) => set_edit_tag_name(e.target.value)}
                 required
-                className="bg-[#1a1a1a] border-[#2a2a2a] text-[#e5e5e5] placeholder:text-[#666666]"
+                className="h-10 rounded-[11px] border-line bg-panel-sunk text-ink placeholder:text-faint"
                 placeholder="Enter tag name"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="edit_tag_color" className="text-sm text-[#e5e5e5]">
-                Tag Color
+              <Label htmlFor="edit_tag_color" className="text-[13px] font-medium text-ink">
+                Tag colour
               </Label>
-              <div className="flex gap-2 items-center">
+              <div className="flex items-center gap-3 rounded-[11px] border border-line2 bg-panel-sunk px-3 py-2.5">
                 <input
                   id="edit_tag_color"
                   type="color"
                   value={edit_tag_color}
                   onChange={(e) => set_edit_tag_color(e.target.value)}
-                  className="h-10 w-20 rounded border border-[#2a2a2a] bg-[#1a1a1a] cursor-pointer"
+                  className="h-9 w-14 cursor-pointer rounded-[8px] border border-line bg-panel"
                 />
-                <div className="flex items-center gap-2 flex-1">
-                  <div
-                    className="size-6 rounded-full border border-[#2a2a2a]"
-                    style={{ backgroundColor: edit_tag_color }}
-                  />
-                  <span className="text-sm text-[#888888]">{edit_tag_color}</span>
-                </div>
+                <span className="num text-[13px] uppercase tracking-wide text-dim">
+                  {edit_tag_color}
+                </span>
               </div>
             </div>
 
             {tag_error && (
-              <p className="text-sm text-red-400">{tag_error}</p>
+              <StatusNote tone="down" icon={TriangleAlert}>{tag_error}</StatusNote>
             )}
 
             <div className="flex gap-2">
               <Button
                 type="button"
                 onClick={() => set_show_edit_tag_modal(false)}
-                variant="ghost"
-                className="flex-1 text-[#888888] hover:text-[#e5e5e5]"
+                variant="outline"
+                className="flex-1 border-line text-dim hover:bg-panel-sunk hover:text-ink"
               >
                 Cancel
               </Button>
               <Button
                 type="submit"
                 disabled={tags_loading || !edit_tag_name}
-                className="flex-1 bg-[#e5e5e5] text-[#0a0a0a] hover:bg-[#d4d4d4]"
+                className="flex-1"
               >
-                {tags_loading ? 'Updating...' : 'Update Tag'}
+                {tags_loading ? 'Updating...' : 'Update tag'}
               </Button>
             </div>
           </form>
@@ -899,50 +1111,53 @@ export default function Settings()
 
       {/* Delete Tag Modal */}
       <Dialog open={show_delete_tag_modal} onOpenChange={set_show_delete_tag_modal}>
-        <DialogContent className="sm:max-w-[425px] bg-[#0f0f0f] border-[#1a1a1a]">
+        <DialogContent className="rounded-[18px] border-line bg-panel sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle className="text-[#e5e5e5]">Delete Tag</DialogTitle>
-            <DialogDescription className="text-[#888888]">
-              Are you sure you want to delete this tag? This action cannot be undone.
+            <DialogTitle className="text-[19px] font-semibold tracking-[-0.015em] text-ink">
+              Delete tag
+            </DialogTitle>
+            <DialogDescription className="text-[13px] text-dim">
+              This removes the tag from every note. It cannot be undone.
             </DialogDescription>
           </DialogHeader>
 
-          {current_tag && (
-            <div className="py-4">
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-[#1a1a1a] border border-[#2a2a2a]">
-                <div
-                  className="size-6 rounded-full border border-[#2a2a2a]"
+          <div className="space-y-4">
+            {current_tag && (
+              <div className="flex items-center gap-3 rounded-[11px] border border-line2 bg-panel-sunk px-3 py-2.5">
+                <span
+                  className="size-3.5 shrink-0 rounded-full border border-line"
                   style={{ backgroundColor: current_tag.color }}
+                  aria-hidden="true"
                 />
-                <span className="text-sm text-[#e5e5e5]">{current_tag.name}</span>
+                <span className="truncate text-sm text-ink">{current_tag.name}</span>
               </div>
+            )}
+
+            {tag_error && (
+              <StatusNote tone="down" icon={TriangleAlert}>{tag_error}</StatusNote>
+            )}
+
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                onClick={() => set_show_delete_tag_modal(false)}
+                variant="outline"
+                className="flex-1 border-line text-dim hover:bg-panel-sunk hover:text-ink"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handle_delete_tag}
+                disabled={tags_loading}
+                variant="destructive"
+                className="flex-1"
+              >
+                {tags_loading ? 'Deleting...' : 'Delete tag'}
+              </Button>
             </div>
-          )}
-
-          {tag_error && (
-            <p className="text-sm text-red-400 mb-4">{tag_error}</p>
-          )}
-
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              onClick={() => set_show_delete_tag_modal(false)}
-              variant="ghost"
-              className="flex-1 text-[#888888] hover:text-[#e5e5e5]"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handle_delete_tag}
-              disabled={tags_loading}
-              className="flex-1 bg-red-500 text-white hover:bg-red-600"
-            >
-              {tags_loading ? 'Deleting...' : 'Delete Tag'}
-            </Button>
           </div>
         </DialogContent>
       </Dialog>
     </AppLayout>
   )
 }
-
