@@ -644,17 +644,6 @@ export default function Settings()
                 </Button>
               </form>
             </SectionCard>
-
-            {/* Integrations */}
-            <SectionCard
-              eyebrow="Integrations"
-              title="Connected accounts"
-              description="Bring your calendar in. Credentials are encrypted on your server and never leave it."
-              delay={0.12}
-              reduce_motion={reduce_motion}
-            >
-              <IntegrationsSection />
-            </SectionCard>
           </div>
 
           <div className="space-y-6">
@@ -780,6 +769,17 @@ export default function Settings()
                   </ul>
                 )}
               </div>
+            </SectionCard>
+
+            {/* Integrations */}
+            <SectionCard
+              eyebrow="Integrations"
+              title="Connected accounts"
+              description="Bring your calendar in. Credentials are encrypted on your server and never leave it."
+              delay={0.24}
+              reduce_motion={reduce_motion}
+            >
+              <IntegrationsSection />
             </SectionCard>
           </div>
         </div>
