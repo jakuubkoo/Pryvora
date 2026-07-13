@@ -6,14 +6,20 @@ namespace App\Controller;
 
 use App\Entity\ConnectedAccount;
 use App\Entity\User;
+use App\Enum\IntegrationStatus;
 use App\Integration\CalendarWriteInterface;
 use App\Integration\Exception\IntegrationException;
+use App\Integration\OAuth\OAuthStateSigner;
+use App\Integration\OAuthProviderInterface;
 use App\Integration\ProviderRegistry;
 use App\Message\SyncConnectedAccount;
 use App\Repository\ConnectedAccountRepository;
+use App\Repository\UserRepository;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Messenger\MessageBusInterface;
@@ -27,10 +33,14 @@ class IntegrationController extends AbstractController
     public function __construct(
         private readonly ProviderRegistry $registry,
         private readonly ConnectedAccountRepository $connectedAccountRepository,
+        private readonly UserRepository $userRepository,
         private readonly EntityManagerInterface $entityManager,
         private readonly MessageBusInterface $messageBus,
+        private readonly OAuthStateSigner $stateSigner,
         private readonly RateLimiterFactoryInterface $syncLimiter,
         private readonly RateLimiterFactoryInterface $testLimiter,
+        #[Autowire('%env(FRONTEND_URL)%')]
+        private readonly string $frontendUrl,
     ) {
     }
 
@@ -47,16 +57,136 @@ class IntegrationController extends AbstractController
 
         foreach ($this->registry->all() as $provider) {
             $account = $this->connectedAccountRepository->findOneByUserAndProvider($user, $provider->get_key());
+            $is_oauth = $provider instanceof OAuthProviderInterface;
+            $configured = !$is_oauth || $provider->is_configured();
 
             $providers[] = [
                 'key' => $provider->get_key(),
                 'label' => $provider->get_label(),
+                // A form provider is connected by typing credentials; an oauth one
+                // by being redirected. The frontend branches on this rather than on
+                // the provider key.
+                'auth' => $is_oauth ? 'oauth' : 'form',
                 'form' => $provider->get_credential_form()->get_fields(),
+                'available' => $configured,
+                'unavailable_reason' => $configured ? null : 'This provider is not configured on this server.',
                 'account' => $account ? $this->serialize_account($account) : null,
             ];
         }
 
         return new JsonResponse($providers, Response::HTTP_OK);
+    }
+
+    /**
+     * Returns the consent URL as JSON rather than issuing a 302: the frontend calls
+     * this with a Bearer token from fetch(), which would transparently follow a
+     * redirect and hand Google an XHR it cannot answer. The browser navigation has
+     * to be the frontend's own window.location.assign().
+     */
+    #[Route('/oauth/{provider}/start', name: 'oauth_start', methods: ['GET'])]
+    public function oauth_start(string $provider): JsonResponse
+    {
+        $user = $this->getUser();
+
+        if (!$user instanceof User) {
+            return new JsonResponse(['error' => 'Unauthorized'], Response::HTTP_UNAUTHORIZED);
+        }
+
+        if (!$this->registry->has($provider)) {
+            return new JsonResponse(['error' => 'Unknown provider.'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $candidate = $this->registry->get($provider);
+
+        if (!$candidate instanceof OAuthProviderInterface) {
+            return new JsonResponse(['error' => 'This provider does not use OAuth.'], Response::HTTP_BAD_REQUEST);
+        }
+
+        if (!$candidate->is_configured()) {
+            return new JsonResponse(['error' => 'This provider is not configured on this server.'], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $existing = $this->connectedAccountRepository->findOneByUserAndProvider($user, $provider);
+
+        // An account stuck in ERROR is exactly the one the user needs to reconnect,
+        // so only a healthy account blocks a fresh consent.
+        if ($existing instanceof ConnectedAccount && IntegrationStatus::ERROR !== $existing->getStatus()) {
+            return new JsonResponse(['error' => 'This provider is already connected.'], Response::HTTP_CONFLICT);
+        }
+
+        $limit = $this->testLimiter->create('oauth-'.$user->getId())->consume();
+
+        if (!$limit->isAccepted()) {
+            return $this->too_many_requests($limit);
+        }
+
+        $state = $this->stateSigner->sign((int) $user->getId(), $provider);
+
+        return new JsonResponse(
+            ['authorization_url' => $candidate->get_authorization_url($state)],
+            Response::HTTP_OK,
+        );
+    }
+
+    /**
+     * Public: the provider redirects the browser here with no Authorization header
+     * and no session, so the user is derived from the signed state and never from
+     * getUser(), which would be null.
+     *
+     * Always redirects back to the frontend. A 500 rendered into the user's browser
+     * mid-OAuth is both a dead end and an information leak.
+     */
+    #[Route('/oauth/callback', name: 'oauth_callback', methods: ['GET'])]
+    public function oauth_callback(Request $request): RedirectResponse
+    {
+        $state = (string) $request->query->get('state', '');
+        $code = (string) $request->query->get('code', '');
+        $denied = (string) $request->query->get('error', '');
+
+        try {
+            $claims = $this->stateSigner->verify($state);
+        } catch (IntegrationException $exception) {
+            // The state is what tells us which provider this was, so without a
+            // valid one there is nothing to report against.
+            return $this->oauth_redirect(null, false, $exception->getMessage());
+        }
+
+        $provider_key = $claims['provider'];
+
+        if ('' !== $denied) {
+            return $this->oauth_redirect($provider_key, false, 'Access was not granted.');
+        }
+
+        if ('' === $code) {
+            return $this->oauth_redirect($provider_key, false, 'Google did not return an authorization code.');
+        }
+
+        $user = $this->userRepository->find($claims['user_id']);
+
+        if (!$user instanceof User || !$this->registry->has($provider_key)) {
+            return $this->oauth_redirect($provider_key, false, 'That sign-in is no longer valid.');
+        }
+
+        $provider = $this->registry->get($provider_key);
+
+        if (!$provider instanceof OAuthProviderInterface) {
+            return $this->oauth_redirect($provider_key, false, 'That provider does not use OAuth.');
+        }
+
+        $existing = $this->connectedAccountRepository->findOneByUserAndProvider($user, $provider_key);
+
+        try {
+            $account = $provider->complete_authorization($user, $code, $existing);
+        } catch (IntegrationException $exception) {
+            return $this->oauth_redirect($provider_key, false, $exception->getMessage());
+        }
+
+        $this->entityManager->persist($account);
+        $this->entityManager->flush();
+
+        $this->messageBus->dispatch(new SyncConnectedAccount((int) $account->getId()));
+
+        return $this->oauth_redirect($provider_key, true, null);
     }
 
     #[Route('/accounts', name: 'accounts', methods: ['GET'])]
@@ -92,6 +222,15 @@ class IntegrationController extends AbstractController
 
         if (!$this->registry->has($key)) {
             return new JsonResponse(['error' => 'Unknown provider.'], Response::HTTP_BAD_REQUEST);
+        }
+
+        // An OAuth provider has no credentials to post. Refuse before anything
+        // reads the bag, so a client cannot smuggle a hand-made token in here.
+        if ($this->registry->get($key) instanceof OAuthProviderInterface) {
+            return new JsonResponse(
+                ['error' => 'This provider is connected through its own sign-in flow.'],
+                Response::HTTP_BAD_REQUEST,
+            );
         }
 
         if ($this->connectedAccountRepository->findOneByUserAndProvider($user, $key)) {
@@ -237,6 +376,30 @@ class IntegrationController extends AbstractController
     private function deny(): JsonResponse
     {
         return new JsonResponse(['error' => 'Not found'], Response::HTTP_NOT_FOUND);
+    }
+
+    /**
+     * Back to Settings with the outcome in the query string, which the frontend
+     * turns into its usual banner and then strips.
+     *
+     * Every value is urlencoded. $message only ever originates from our own
+     * IntegrationExceptions, never from the provider's query string — echoing
+     * Google's `error` param back verbatim would be a reflected-content hole.
+     */
+    private function oauth_redirect(?string $provider, bool $ok, ?string $message): RedirectResponse
+    {
+        $params = [
+            'integration' => $provider ?? 'unknown',
+            'status' => $ok ? 'connected' : 'error',
+        ];
+
+        if (null !== $message && '' !== $message) {
+            $params['message'] = $message;
+        }
+
+        return new RedirectResponse(
+            rtrim($this->frontendUrl, '/').'/settings?'.http_build_query($params),
+        );
     }
 
     /**

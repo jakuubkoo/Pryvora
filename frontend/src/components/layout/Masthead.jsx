@@ -10,6 +10,7 @@ const nav_items = [
   { to: '/notes', label: 'Notes' },
   { to: '/tasks', label: 'Tasks' },
   { to: '/calendar', label: 'Calendar' },
+  { to: '/inbox', label: 'Inbox' },
   { to: '/settings', label: 'Settings' },
 ]
 

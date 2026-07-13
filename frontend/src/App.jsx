@@ -7,6 +7,7 @@ import Dashboard from '@/pages/Dashboard'
 import Notes from '@/pages/Notes'
 import Tasks from '@/pages/Tasks'
 import Calendar from '@/pages/Calendar'
+import Inbox from '@/pages/Inbox'
 import Settings from '@/pages/Settings'
 
 function App()
@@ -62,6 +63,14 @@ function App()
           element={
             <ProtectedRoute>
               <Calendar/>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/inbox"
+          element={
+            <ProtectedRoute>
+              <Inbox/>
             </ProtectedRoute>
           }
         />

@@ -8,6 +8,8 @@ use App\Entity\ConnectedAccount;
 use App\Entity\User;
 use App\Enum\IntegrationStatus;
 use App\Integration\Apple\AppleCalendarProvider;
+use App\Integration\Google\GmailProvider;
+use App\Integration\OAuth\OAuthStateSigner;
 use App\Message\PushCalendarEvent;
 use App\Service\ConnectedAccountCredentials;
 use Doctrine\ORM\EntityManagerInterface;
@@ -179,11 +181,144 @@ class IntegrationControllerTest extends WebTestCase
         ]);
 
         $this->assertResponseIsSuccessful();
-        $providers = json_decode($seed['client']->getResponse()->getContent() ?: '', true);
+        $apple = $this->find_provider($seed['client'], AppleCalendarProvider::KEY);
 
-        $this->assertCount(2, $providers[0]['account']['calendars']);
-        $this->assertSame('Home', $providers[0]['account']['calendars'][0]['display_name']);
-        $this->assertNull($providers[0]['account']['target_calendar_href']);
+        $this->assertCount(2, $apple['account']['calendars']);
+        $this->assertSame('Home', $apple['account']['calendars'][0]['display_name']);
+        $this->assertNull($apple['account']['target_calendar_href']);
+    }
+
+    /**
+     * The registry is iterated in service-definition order, which is not a contract.
+     * Look providers up by key rather than by position.
+     *
+     * @return array<string, mixed>
+     */
+    private function find_provider(KernelBrowser $client, string $key): array
+    {
+        $providers = json_decode($client->getResponse()->getContent() ?: '', true);
+
+        foreach ($providers as $provider) {
+            if ($key === $provider['key']) {
+                return $provider;
+            }
+        }
+
+        $this->fail(sprintf('Provider "%s" is not registered.', $key));
+    }
+
+    public function test_apple_is_a_form_provider_and_gmail_is_an_oauth_one(): void
+    {
+        $auth_data = $this->register_and_login_user();
+
+        $auth_data['client']->request('GET', '/api/integration/providers', [], [], [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $auth_data['token'],
+        ]);
+
+        $this->assertResponseIsSuccessful();
+
+        $apple = $this->find_provider($auth_data['client'], AppleCalendarProvider::KEY);
+        $gmail = $this->find_provider($auth_data['client'], GmailProvider::KEY);
+
+        // This discriminator is the whole reason the frontend needs no per-provider
+        // knowledge: a form is typed into, an oauth provider is redirected to.
+        $this->assertSame('form', $apple['auth']);
+        $this->assertSame('oauth', $gmail['auth']);
+        $this->assertSame([], $gmail['form']);
+        $this->assertTrue($gmail['available'], 'The test env configures fake Google credentials.');
+    }
+
+    public function test_gmail_cannot_be_connected_through_the_credentials_form(): void
+    {
+        $auth_data = $this->register_and_login_user();
+
+        $auth_data['client']->request('POST', '/api/integration/accounts', [], [], [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $auth_data['token'],
+            'CONTENT_TYPE' => 'application/json',
+        ], json_encode([
+            'provider' => GmailProvider::KEY,
+            'credentials' => ['access_token' => 'a-token-i-made-up'],
+        ]) ?: '');
+
+        $this->assertResponseStatusCodeSame(Response::HTTP_BAD_REQUEST);
+    }
+
+    public function test_oauth_start_requires_authentication(): void
+    {
+        $client = static::createClient();
+        $client->request('GET', '/api/integration/oauth/' . GmailProvider::KEY . '/start');
+
+        $this->assertResponseStatusCodeSame(Response::HTTP_UNAUTHORIZED);
+    }
+
+    public function test_oauth_start_returns_a_consent_url_with_the_readonly_scope(): void
+    {
+        $auth_data = $this->register_and_login_user();
+
+        $auth_data['client']->request('GET', '/api/integration/oauth/' . GmailProvider::KEY . '/start', [], [], [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $auth_data['token'],
+        ]);
+
+        $this->assertResponseIsSuccessful();
+        $url = json_decode($auth_data['client']->getResponse()->getContent() ?: '', true)['authorization_url'];
+
+        $this->assertStringStartsWith('https://accounts.google.com/o/oauth2/v2/auth?', $url);
+
+        parse_str((string) parse_url($url, \PHP_URL_QUERY), $query);
+
+        // Read-only, and nothing but read-only.
+        $this->assertSame('https://www.googleapis.com/auth/gmail.readonly', $query['scope']);
+
+        // Without these two Google withholds the refresh token on re-consent and
+        // the integration dies at the first expiry with no way back.
+        $this->assertSame('offline', $query['access_type']);
+        $this->assertSame('consent', $query['prompt']);
+
+        $this->assertNotEmpty($query['state']);
+    }
+
+    public function test_oauth_start_rejects_a_form_provider(): void
+    {
+        $auth_data = $this->register_and_login_user();
+
+        $auth_data['client']->request('GET', '/api/integration/oauth/' . AppleCalendarProvider::KEY . '/start', [], [], [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $auth_data['token'],
+        ]);
+
+        $this->assertResponseStatusCodeSame(Response::HTTP_BAD_REQUEST);
+    }
+
+    /**
+     * The callback is public and is reached by a browser mid-redirect. A forged or
+     * stale state must land the user back on Settings with an error — never a 500,
+     * which would be both a dead end and an information leak.
+     */
+    public function test_oauth_callback_redirects_home_on_a_forged_state(): void
+    {
+        $client = static::createClient();
+        $client->request('GET', '/api/integration/oauth/callback?code=abc&state=garbage');
+
+        $this->assertResponseStatusCodeSame(Response::HTTP_FOUND);
+
+        $location = (string) $client->getResponse()->headers->get('Location');
+
+        $this->assertStringContainsString('/settings?', $location);
+        $this->assertStringContainsString('status=error', $location);
+    }
+
+    public function test_oauth_callback_reports_a_denied_consent(): void
+    {
+        $client = static::createClient();
+        $signer = static::getContainer()->get(OAuthStateSigner::class);
+
+        $client->request('GET', '/api/integration/oauth/callback?error=access_denied&state=' . urlencode($signer->sign(1, GmailProvider::KEY)));
+
+        $this->assertResponseStatusCodeSame(Response::HTTP_FOUND);
+
+        $location = (string) $client->getResponse()->headers->get('Location');
+
+        $this->assertStringContainsString('status=error', $location);
+        $this->assertStringContainsString('integration=gmail', $location);
     }
 
     public function test_patch_sets_the_target_calendar(): void
