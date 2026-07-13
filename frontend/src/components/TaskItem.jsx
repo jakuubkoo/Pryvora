@@ -1,42 +1,46 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Trash2Icon, EditIcon, CalendarIcon, AlertCircleIcon, AlertTriangle } from 'lucide-react'
+import {
+  Trash2Icon,
+  PencilIcon,
+  CalendarIcon,
+  AlertCircleIcon,
+  AlertTriangleIcon,
+  CircleDashedIcon,
+  CircleDotIcon,
+  CheckCircle2Icon,
+} from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 
-const priority_colors = {
-  low: 'bg-slate-800 text-slate-400 border border-slate-600',
-  medium: 'bg-amber-900/60 text-amber-300 border border-amber-600',
-  high: 'bg-rose-900/60 text-rose-300 border border-rose-600',
+// One accent, one categorical set. Status and priority never invent new hues.
+const status_meta = {
+  todo: { label: 'To Do', color: 'var(--sage)', icon: CircleDashedIcon },
+  in_progress: { label: 'In Progress', color: 'var(--gold)', icon: CircleDotIcon },
+  done: { label: 'Done', color: 'var(--accent)', icon: CheckCircle2Icon },
 }
 
-const status_colors = {
-  todo: 'bg-zinc-700 text-zinc-200 border border-zinc-500',
-  in_progress: 'bg-indigo-950 text-indigo-300 border border-indigo-700',
-  done: 'bg-emerald-950 text-emerald-400 border border-emerald-700 line-through opacity-60',
+const priority_meta = {
+  low: { label: 'Low', color: 'var(--sage)' },
+  medium: { label: 'Medium', color: 'var(--gold)' },
+  high: { label: 'High', color: 'var(--clay)' },
 }
 
-const status_border_colors = {
-  todo: 'border-l-slate-500/50',
-  in_progress: 'border-l-indigo-500/50',
-  done: 'border-l-green-500/50',
-}
-
-const capitalize_text = (text) =>
+const tint = (color, percent) =>
 {
-  return text
-    .split('_')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ')
+  return `color-mix(in srgb, ${color} ${percent}%, transparent)`
 }
 
 export default function TaskItem({ task, on_toggle_status, on_edit, on_delete })
 {
   const [deleting, set_deleting] = useState(false)
   const [show_delete_modal, set_show_delete_modal] = useState(false)
+
+  const status = status_meta[task.status] || status_meta.todo
+  const priority = priority_meta[task.priority] || priority_meta.low
+  const StatusIcon = status.icon
 
   const handle_delete_click = () =>
   {
@@ -70,52 +74,61 @@ export default function TaskItem({ task, on_toggle_status, on_edit, on_delete })
     return task.due_date.split(' ')[0] < today
   }
 
+  const overdue = is_overdue()
+  const due_color = overdue ? 'var(--down)' : 'var(--dim)'
+
   return (
     <motion.div
       className={cn(
-        'group relative flex flex-col justify-between p-4 rounded-lg border-l-4 border border-white/10 transition-all duration-150 cursor-pointer h-48',
-        'bg-zinc-900',
-        'hover:bg-zinc-800 hover:border-white/20',
-        status_border_colors[task.status],
-        task.status === 'done' && 'opacity-50',
-        deleting && 'opacity-30 pointer-events-none'
+        'panel group relative flex h-full min-h-[11.5rem] flex-col overflow-hidden p-4 transition-colors duration-150',
+        'hover:bg-[color-mix(in_srgb,var(--ink)_3%,var(--panel))]',
+        deleting && 'pointer-events-none opacity-40'
       )}
       transition={{ duration: 0.15 }}
     >
-      {/* Header: Checkbox + Title + Actions */}
-      <div className="flex items-start gap-3 mb-3">
+      {/* Colour-coded left edge, by status */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-y-0 left-0 w-[3px]"
+        style={{ backgroundColor: status.color }}
+      />
+
+      {/* Header: checkbox + title + actions */}
+      <div className="mb-2 flex items-start gap-3 pl-1">
         <Checkbox
           checked={task.status === 'done'}
           onCheckedChange={() => on_toggle_status(task)}
-          className="transition-all cursor-pointer mt-0.5 border-zinc-600 data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600"
+          aria-label={task.status === 'done' ? `Mark "${task.title}" as not done` : `Mark "${task.title}" as done`}
+          className="mt-0.5 cursor-pointer border-line2 data-[state=checked]:border-accent data-[state=checked]:bg-accent"
         />
 
-        <div className="flex-1 min-w-0">
-          <h3
-            className={cn(
-              'text-sm font-semibold text-white leading-snug',
-              task.status === 'done' && 'line-through text-[#666666]'
-            )}
-          >
-            {task.title}
-          </h3>
-        </div>
+        <h3
+          className={cn(
+            'min-w-0 flex-1 text-sm font-semibold leading-snug text-ink',
+            task.status === 'done' && 'text-dim line-through'
+          )}
+        >
+          {task.title}
+        </h3>
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
           <Button
+            type="button"
             variant="ghost"
             size="icon-sm"
             onClick={on_edit}
-            className="text-[#888888] hover:text-[#e5e5e5] hover:bg-[#1a1a1a] cursor-pointer"
+            aria-label={`Edit task "${task.title}"`}
+            className="cursor-pointer text-faint hover:bg-panel-sunk hover:text-ink"
           >
-            <EditIcon className="size-4"/>
+            <PencilIcon className="size-4"/>
           </Button>
           <Button
+            type="button"
             variant="ghost"
             size="icon-sm"
             onClick={handle_delete_click}
-            className="text-[#888888] hover:text-red-400 hover:bg-red-500/10 cursor-pointer"
+            aria-label={`Delete task "${task.title}"`}
+            className="cursor-pointer text-faint hover:bg-[color-mix(in_srgb,var(--down)_12%,transparent)] hover:text-down"
           >
             <Trash2Icon className="size-4"/>
           </Button>
@@ -124,65 +137,81 @@ export default function TaskItem({ task, on_toggle_status, on_edit, on_delete })
 
       {/* Description */}
       {task.description && (
-        <p className="text-xs text-zinc-400 leading-relaxed whitespace-pre-wrap mb-auto line-clamp-3">
+        <p className="mb-auto line-clamp-3 whitespace-pre-wrap pl-1 text-xs leading-relaxed text-dim">
           {task.description}
         </p>
       )}
 
-      {/* Footer: Badges */}
-      <div className="flex flex-wrap items-center gap-2 mt-auto pt-3">
-        <Badge
-          className={cn('text-xs font-medium px-2 py-0.5 rounded-md cursor-default', status_colors[task.status])}
+      {/* Footer: status, priority, due date */}
+      <div className="mt-auto flex flex-wrap items-center gap-1.5 pl-1 pt-3">
+        <span
+          className="num inline-flex items-center gap-1 rounded-[20px] border px-2 py-0.5 text-[11px] font-semibold"
+          style={{
+            color: status.color,
+            backgroundColor: tint(status.color, 13),
+            borderColor: tint(status.color, 30),
+          }}
         >
-          {capitalize_text(task.status)}
-        </Badge>
-        <Badge
-          className={cn('text-xs font-medium px-2 py-0.5 rounded-md cursor-default', priority_colors[task.priority])}
+          <StatusIcon className="size-3"/>
+          {status.label}
+        </span>
+
+        <span
+          className="num inline-flex items-center rounded-[20px] border px-2 py-0.5 text-[11px] font-semibold"
+          style={{
+            color: priority.color,
+            backgroundColor: tint(priority.color, 13),
+            borderColor: tint(priority.color, 30),
+          }}
         >
-          {capitalize_text(task.priority)}
-        </Badge>
+          {priority.label}
+        </span>
+
         {task.due_date && (
-          <div className="text-xs text-zinc-400 flex items-center gap-1">
-            {is_overdue() ? (
-              <AlertCircleIcon className="size-3"/>
-            ) : (
-              <CalendarIcon className="size-3"/>
-            )}
+          <span
+            className="num inline-flex items-center gap-1 text-[11px] font-medium"
+            style={{ color: due_color }}
+          >
+            {overdue ? <AlertCircleIcon className="size-3"/> : <CalendarIcon className="size-3"/>}
             {format_date(task.due_date)}
-          </div>
+          </span>
         )}
       </div>
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete confirmation */}
       <Dialog open={show_delete_modal} onOpenChange={set_show_delete_modal}>
-        <DialogContent className="sm:max-w-sm bg-[#0f0f0f] border border-white/10 rounded-xl animate-in fade-in zoom-in-95 duration-200">
-          <div className="flex flex-col items-center text-center space-y-4 py-2">
-            <div className="flex items-center justify-center w-12 h-12 rounded-full bg-rose-500/10">
-              <AlertTriangle className="size-6 text-rose-500"/>
+        <DialogContent className="panel sm:max-w-sm">
+          <div className="flex flex-col items-center space-y-4 py-2 text-center">
+            <div
+              className="flex size-12 items-center justify-center rounded-[20px]"
+              style={{ backgroundColor: tint('var(--down)', 13) }}
+            >
+              <AlertTriangleIcon className="size-6 text-down"/>
             </div>
 
             <DialogHeader className="space-y-2">
-              <DialogTitle className="text-[#e5e5e5] text-xl font-bold">
-                Delete Task?
+              <DialogTitle className="text-xl font-bold text-ink">
+                Delete this task?
               </DialogTitle>
-              <DialogDescription className="text-[#888888]">
-                This action cannot be undone.
+              <DialogDescription className="text-dim">
+                &ldquo;{task.title}&rdquo; will be removed from the archive. This cannot be undone.
               </DialogDescription>
             </DialogHeader>
 
-            <DialogFooter className="flex flex-col sm:flex-row gap-2 w-full pt-2">
+            <DialogFooter className="flex w-full flex-col gap-2 pt-2 sm:flex-row">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => set_show_delete_modal(false)}
-                className="flex-1 border border-white/20 hover:border-white/40 cursor-pointer"
+                className="flex-1 cursor-pointer"
               >
                 Cancel
               </Button>
               <Button
                 type="button"
                 onClick={handle_delete_confirm}
-                className="flex-1 bg-rose-600 hover:bg-rose-700 text-white cursor-pointer"
+                className="flex-1 cursor-pointer border text-on-accent"
+                style={{ backgroundColor: 'var(--down)', borderColor: 'var(--down)' }}
               >
                 Delete
               </Button>
@@ -193,4 +222,3 @@ export default function TaskItem({ task, on_toggle_status, on_edit, on_delete })
     </motion.div>
   )
 }
-

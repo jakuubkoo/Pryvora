@@ -7,7 +7,7 @@ import { AuthProvider } from './contexts/AuthContext.jsx'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <ThemeProvider defaultTheme="dark" storageKey="pryvora-ui-theme">
+    <ThemeProvider defaultTheme="light" storageKey="pryvora-ui-theme">
       <AuthProvider>
         <App />
       </AuthProvider>

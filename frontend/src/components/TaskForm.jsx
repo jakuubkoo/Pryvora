@@ -1,13 +1,10 @@
 import { useState, useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import {
-  XIcon,
-  CircleIcon,
+  CircleDashedIcon,
   CircleDotIcon,
   CheckCircle2Icon,
-  FlagIcon,
-  AlertCircleIcon,
-  SignalIcon
+  XIcon,
 } from 'lucide-react'
 import { addDays, addWeeks, addMonths, format } from 'date-fns'
 import {
@@ -30,6 +27,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
+import { use_reduced_motion } from '@/hooks/use-reduced-motion.js'
 import DatePicker from '@/components/DatePicker'
 
 const quick_date_options = [
@@ -40,8 +38,27 @@ const quick_date_options = [
   { label: 'In a month', getValue: () => addMonths(new Date(), 1) },
 ]
 
+const priority_options = [
+  { value: 'low', label: 'Low', color: 'var(--sage)' },
+  { value: 'medium', label: 'Medium', color: 'var(--gold)' },
+  { value: 'high', label: 'High', color: 'var(--clay)' },
+]
+
+const tint = (color, percent) =>
+{
+  return `color-mix(in srgb, ${color} ${percent}%, transparent)`
+}
+
+const underline_field = [
+  'rounded-none border-0 border-b border-line bg-transparent px-0 text-ink',
+  'placeholder:text-faint shadow-none',
+  'focus-visible:border-accent focus-visible:ring-0',
+].join(' ')
+
 export default function TaskForm({ task, on_submit, on_cancel })
 {
+  const should_reduce_motion = use_reduced_motion()
+
   const [form_data, set_form_data] = useState({
     title: '',
     description: '',
@@ -95,42 +112,43 @@ export default function TaskForm({ task, on_submit, on_cancel })
 
   return (
     <Dialog open={true} onOpenChange={on_cancel}>
-      <DialogContent className="border-[#1a1a1a] bg-[#0f0f0f] sm:max-w-[540px]">
-        <DialogHeader className="space-y-3">
-          <DialogTitle className="text-[#e5e5e5] text-xl">
-            {task ? 'Edit Task' : 'Create New Task'}
+      <DialogContent className="panel max-h-[90vh] overflow-y-auto sm:max-w-[540px]">
+        <DialogHeader className="space-y-2 text-left">
+          <span className="eyebrow">{task ? 'Edit entry' : 'New entry'}</span>
+          <DialogTitle className="text-xl font-bold tracking-[-0.02em] text-ink">
+            {task ? 'Edit task' : 'Create a task'}
           </DialogTitle>
-          <DialogDescription className="text-[#888888] text-sm">
-            {task ? 'Update the details of your task below.' : 'Fill in the details to create a new task.'}
+          <DialogDescription className="text-sm text-dim">
+            {task ? 'Update the details of your task below.' : 'A title is all you need. The rest can wait.'}
           </DialogDescription>
         </DialogHeader>
 
         <motion.form
           onSubmit={handle_submit}
-          className="space-y-5 mt-2"
-          initial={{ opacity: 0, y: 10 }}
+          className="mt-2 space-y-6"
+          initial={{ opacity: should_reduce_motion ? 1 : 0, y: should_reduce_motion ? 0 : 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: should_reduce_motion ? 0 : 0.3, ease: [0.22, 1, 0.36, 1] }}
         >
           {/* Title */}
           <div className="space-y-2">
-            <Label htmlFor="title" className="text-[#e5e5e5] text-sm font-medium">
-              Title <span className="text-red-400">*</span>
+            <Label htmlFor="title" className="eyebrow">
+              Title <span className="text-down">*</span>
             </Label>
             <Input
               id="title"
               value={form_data.title}
               onChange={(e) => handle_change('title', e.target.value)}
-              placeholder="e.g., Complete project proposal"
+              placeholder="e.g. Complete project proposal"
               required
               autoFocus
-              className="bg-transparent border-0 border-b border-white/10 rounded-none text-[#e5e5e5] placeholder:text-[#555555] focus:border-indigo-500 focus-visible:ring-0 px-0"
+              className={cn(underline_field, 'text-base')}
             />
           </div>
 
           {/* Description */}
           <div className="space-y-2">
-            <Label htmlFor="description" className="text-[#e5e5e5] text-sm font-medium">
+            <Label htmlFor="description" className="eyebrow">
               Description
             </Label>
             <Textarea
@@ -139,135 +157,123 @@ export default function TaskForm({ task, on_submit, on_cancel })
               onChange={(e) => handle_change('description', e.target.value)}
               placeholder="Add more details about this task..."
               rows={4}
-              className="bg-transparent border-0 border-b border-white/10 rounded-none text-[#e5e5e5] placeholder:text-[#555555] focus:border-indigo-500 focus-visible:ring-0 resize-none px-0"
+              className={cn(underline_field, 'resize-none text-sm')}
             />
           </div>
 
-          {/* Status and Priority */}
-          <div className="grid grid-cols-2 gap-4">
+          {/* Status + priority */}
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="status" className="text-[#e5e5e5] text-sm font-medium">
+              <Label htmlFor="status" className="eyebrow">
                 Status
               </Label>
               <Select value={form_data.status} onValueChange={(value) => handle_change('status', value)}>
-                <SelectTrigger className="bg-[#0a0a0a] border-[#1a1a1a] text-[#e5e5e5] focus:border-[#2a2a2a] cursor-pointer">
+                <SelectTrigger
+                  id="status"
+                  className="w-full cursor-pointer rounded-[11px] border-line bg-panel-sunk text-ink"
+                >
                   <SelectValue/>
                 </SelectTrigger>
-                <SelectContent className="bg-[#0f0f0f] border-[#1a1a1a]">
-                  <SelectItem
-                    value="todo"
-                    className="text-[#e5e5e5] cursor-pointer hover:bg-[#1a1a1a] focus:bg-[#1a1a1a]"
-                  >
-                    <div className="flex items-center gap-2">
-                      <CircleIcon className="size-4 text-slate-400"/>
-                      <span>To Do</span>
-                    </div>
+                <SelectContent className="panel">
+                  <SelectItem value="todo" className="cursor-pointer text-ink">
+                    <span className="flex items-center gap-2">
+                      <CircleDashedIcon className="size-4" style={{ color: 'var(--sage)' }}/>
+                      To Do
+                    </span>
                   </SelectItem>
-                  <SelectItem
-                    value="in_progress"
-                    className="text-[#e5e5e5] cursor-pointer hover:bg-[#1a1a1a] focus:bg-[#1a1a1a]"
-                  >
-                    <div className="flex items-center gap-2">
-                      <CircleDotIcon className="size-4 text-blue-400"/>
-                      <span>In Progress</span>
-                    </div>
+                  <SelectItem value="in_progress" className="cursor-pointer text-ink">
+                    <span className="flex items-center gap-2">
+                      <CircleDotIcon className="size-4" style={{ color: 'var(--gold)' }}/>
+                      In Progress
+                    </span>
                   </SelectItem>
-                  <SelectItem
-                    value="done"
-                    className="text-[#e5e5e5] cursor-pointer hover:bg-[#1a1a1a] focus:bg-[#1a1a1a]"
-                  >
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2Icon className="size-4 text-green-400"/>
-                      <span>Done</span>
-                    </div>
+                  <SelectItem value="done" className="cursor-pointer text-ink">
+                    <span className="flex items-center gap-2">
+                      <CheckCircle2Icon className="size-4 text-accent"/>
+                      Done
+                    </span>
                   </SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
+            {/* Segmented priority control */}
             <div className="space-y-2">
-              <Label className="text-[#e5e5e5] text-sm font-medium">
+              <Label className="eyebrow" id="priority_label">
                 Priority
               </Label>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => handle_change('priority', 'low')}
-                  className={cn(
-                    'flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer',
-                    form_data.priority === 'low'
-                      ? 'bg-slate-700 text-slate-100 border border-slate-500'
-                      : 'bg-transparent border border-slate-500 text-slate-400 hover:bg-slate-500/10'
-                  )}
-                >
-                  Low
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handle_change('priority', 'medium')}
-                  className={cn(
-                    'flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer',
-                    form_data.priority === 'medium'
-                      ? 'bg-amber-500/20 text-amber-300 border border-amber-400'
-                      : 'bg-transparent border border-amber-500 text-amber-400 hover:bg-amber-500/10'
-                  )}
-                >
-                  Medium
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handle_change('priority', 'high')}
-                  className={cn(
-                    'flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer',
-                    form_data.priority === 'high'
-                      ? 'bg-rose-500/20 text-rose-300 border border-rose-400'
-                      : 'bg-transparent border border-rose-500 text-rose-400 hover:bg-rose-500/10'
-                  )}
-                >
-                  High
-                </button>
+              <div
+                role="radiogroup"
+                aria-labelledby="priority_label"
+                className="flex gap-1 rounded-[11px] border border-line bg-panel-sunk p-1"
+              >
+                {priority_options.map((option) =>
+                {
+                  const is_selected = form_data.priority === option.value
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={is_selected}
+                      onClick={() => handle_change('priority', option.value)}
+                      className={cn(
+                        'flex-1 cursor-pointer rounded-[8px] px-2 py-1.5 text-xs font-semibold transition-colors duration-150',
+                        !is_selected && 'text-dim hover:text-ink'
+                      )}
+                      style={is_selected
+                        ? { color: option.color, backgroundColor: tint(option.color, 16) }
+                        : undefined}
+                    >
+                      {option.label}
+                    </button>
+                  )
+                })}
               </div>
             </div>
           </div>
 
-          {/* Due Date */}
+          {/* Due date */}
           <div className="space-y-3">
-            <Label htmlFor="due_date" className="text-[#e5e5e5] text-sm font-medium">
-              Due Date
+            <Label className="eyebrow" id="due_date_label">
+              Due date
             </Label>
 
-            {/* Quick Select Buttons */}
             <div className="flex flex-wrap gap-2">
-              {quick_date_options.map((option) => {
+              {quick_date_options.map((option) =>
+              {
                 const is_selected = form_data.due_date === format(option.getValue(), 'yyyy-MM-dd')
                 return (
                   <button
                     key={option.label}
                     type="button"
+                    aria-pressed={is_selected}
                     onClick={() => handle_quick_date(option.getValue)}
                     className={cn(
-                      'px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer',
+                      'cursor-pointer rounded-[20px] border px-3 py-1.5 text-xs font-semibold transition-colors duration-150',
                       is_selected
-                        ? 'bg-indigo-500 text-white border border-indigo-500'
-                        : 'bg-transparent border border-white/20 text-[#888888] hover:border-white/40 hover:text-[#e5e5e5]'
+                        ? 'border-transparent bg-[color-mix(in_srgb,var(--accent)_14%,transparent)] font-bold text-accent'
+                        : 'border-line text-dim hover:border-line hover:text-ink'
                     )}
                   >
                     {option.label}
                   </button>
                 )
               })}
+
               {form_data.due_date && (
                 <button
                   type="button"
                   onClick={() => handle_change('due_date', '')}
-                  className="px-3 py-1.5 rounded-lg text-xs font-medium bg-transparent border border-rose-500/20 text-rose-400 hover:bg-rose-500/10 hover:border-rose-500/40 transition-all duration-150 cursor-pointer"
+                  aria-label="Clear due date"
+                  className="flex cursor-pointer items-center gap-1 rounded-[20px] border border-line px-3 py-1.5 text-xs font-semibold text-dim transition-colors duration-150 hover:border-down hover:text-down"
                 >
+                  <XIcon className="size-3"/>
                   Clear
                 </button>
               )}
             </div>
 
-            {/* Date Picker */}
             <DatePicker
               value={form_data.due_date}
               on_change={handle_date_change}
@@ -275,21 +281,20 @@ export default function TaskForm({ task, on_submit, on_cancel })
             />
           </div>
 
-          {/* Footer */}
-          <DialogFooter className="gap-2 sm:gap-0 pt-2">
+          <DialogFooter className="gap-2 pt-2 sm:gap-2">
             <Button
               type="button"
               variant="outline"
               onClick={on_cancel}
-              className="min-w-[100px] cursor-pointer border border-white/20 hover:border-white/40"
+              className="min-w-[100px] cursor-pointer rounded-[11px]"
             >
               Cancel
             </Button>
             <Button
               type="submit"
-              className="min-w-[100px] cursor-pointer"
+              className="min-w-[100px] cursor-pointer rounded-[11px] bg-accent text-on-accent hover:bg-[color-mix(in_srgb,var(--ink)_12%,var(--accent))]"
             >
-              {task ? 'Update Task' : 'Create Task'}
+              {task ? 'Save changes' : 'Create task'}
             </Button>
           </DialogFooter>
         </motion.form>
@@ -297,4 +302,3 @@ export default function TaskForm({ task, on_submit, on_cancel })
     </Dialog>
   )
 }
-
