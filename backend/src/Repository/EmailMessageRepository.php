@@ -128,6 +128,63 @@ class EmailMessageRepository extends ServiceEntityRepository
     }
 
     /**
+     * @return EmailMessage[]
+     */
+    public function findBySender(User $user, string $sender_email): array
+    {
+        return $this->createQueryBuilder('m')
+            ->andWhere('m.userOwner = :user')
+            ->andWhere('m.fromEmail = :sender')
+            ->setParameter('user', $user)
+            ->setParameter('sender', mb_strtolower(trim($sender_email)))
+            ->getQuery()
+            ->getResult();
+    }
+
+    /**
+     * Forces every stored message from a sender into one category — the retroactive
+     * half of blocking. A bulk UPDATE rather than a loop: a chatty newsletter can
+     * easily have hundreds of rows and none of them need hydrating.
+     *
+     * @return int rows moved
+     */
+    public function setCategoryForSender(User $user, string $sender_email, EmailCategory $category): int
+    {
+        return (int) $this->createQueryBuilder('m')
+            ->update()
+            ->set('m.category', ':category')
+            ->andWhere('m.userOwner = :user')
+            ->andWhere('m.fromEmail = :sender')
+            ->andWhere('m.category != :category')
+            ->setParameter('category', $category)
+            ->setParameter('user', $user)
+            ->setParameter('sender', mb_strtolower(trim($sender_email)))
+            ->getQuery()
+            ->execute();
+    }
+
+    /**
+     * Puts a sender's mail back where the classifier had it. This is the whole
+     * reason autoCategory exists as a separate column — without it, un-blocking
+     * would have nothing to restore to.
+     *
+     * @return int rows restored
+     */
+    public function restoreAutoCategory(User $user, string $sender_email): int
+    {
+        return (int) $this->createQueryBuilder('m')
+            ->update()
+            ->set('m.category', 'm.autoCategory')
+            ->andWhere('m.userOwner = :user')
+            ->andWhere('m.fromEmail = :sender')
+            ->andWhere('m.category != m.autoCategory')
+            ->setParameter('user', $user)
+            ->setParameter('sender', mb_strtolower(trim($sender_email)))
+            ->getQuery()
+            ->execute();
+    }
+
+    /**
      * @param list<string> $gmail_message_ids
      */
     public function deleteByAccountAndGmailIds(ConnectedAccount $account, array $gmail_message_ids): void

@@ -67,8 +67,24 @@ class EmailMessage
     #[ORM\Column]
     private ?\DateTimeImmutable $receivedAt = null;
 
+    /**
+     * The effective category — user rule, if any, otherwise autoCategory. This is
+     * the one the Inbox tabs filter on, and the only one that is indexed.
+     */
     #[ORM\Column(length: 32, enumType: EmailCategory::class)]
     private EmailCategory $category = EmailCategory::PRIORITY;
+
+    /**
+     * What TriageClassifier decided from the message alone, ignoring user rules.
+     *
+     * Kept alongside `category` so that un-blocking a sender can restore their
+     * mail to where it actually belonged — a newsletter goes back to Noise, not to
+     * Priority. It cannot be recomputed on demand: message bodies and raw headers
+     * are never stored (format=METADATA payloads are mapped and discarded), so if
+     * a user rule overwrote this we could never get the original verdict back.
+     */
+    #[ORM\Column(length: 32, enumType: EmailCategory::class)]
+    private EmailCategory $autoCategory = EmailCategory::PRIORITY;
 
     /**
      * Rule ids and weights only — policy names, never matched content. That is
@@ -248,6 +264,18 @@ class EmailMessage
     public function setCategory(EmailCategory $category): static
     {
         $this->category = $category;
+
+        return $this;
+    }
+
+    public function getAutoCategory(): EmailCategory
+    {
+        return $this->autoCategory;
+    }
+
+    public function setAutoCategory(EmailCategory $autoCategory): static
+    {
+        $this->autoCategory = $autoCategory;
 
         return $this;
     }

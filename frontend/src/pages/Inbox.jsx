@@ -16,6 +16,9 @@ import {
   EyeOffIcon,
   HelpCircleIcon,
   PlugIcon,
+  BanIcon,
+  PinIcon,
+  RotateCcwIcon,
 } from 'lucide-react'
 import AppLayout from '@/components/layout/AppLayout'
 import { Button } from '@/components/ui/button'
@@ -70,6 +73,19 @@ const NOISE_TABS = [
   { key: 'promotion', label: 'Promotions', icon: MegaphoneIcon },
   { key: 'social', label: 'Social', icon: UsersIcon },
 ]
+
+const NOISE_CATEGORIES = ['newsletter', 'notification', 'promotion', 'social']
+
+// Which of the three tabs a category belongs to. Mirrors EmailCategory::bucket().
+function bucket_of(category)
+{
+  if ('priority' === category)
+  {
+    return 'needs_you'
+  }
+
+  return NOISE_CATEGORIES.includes(category) ? 'noise' : 'blocked'
+}
 
 // Turns the classifier's rule ids into something a human can argue with. Kept in
 // lockstep with TriageClassifier — if a rule is added there and not here, the Why
@@ -163,8 +179,11 @@ function FilterPill({ is_active, icon, label, count, size, on_click })
   )
 }
 
-function WhyPopover({ reason, category })
+function WhyPopover({ message })
 {
+  const { category, auto_category, category_reason } = message
+  const overridden = category !== auto_category
+
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -176,12 +195,25 @@ function WhyPopover({ reason, category })
           Why?
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-[280px] space-y-2 rounded-[12px] border-line bg-panel p-3">
+      <PopoverContent align="end" className="w-[290px] space-y-2 rounded-[12px] border-line bg-panel p-3">
+        {/* When your own rule overrode the classifier, lead with that. Otherwise the
+            rule list below would look like it contradicts the tab the email is in. */}
+        {overridden && (
+          <p className="rounded-[8px] bg-panel-sunk px-2 py-1.5 text-[12px] font-semibold text-ink">
+            {'blocked' === category
+              ? 'You blocked this sender'
+              : 'You always show this sender'}
+          </p>
+        )}
+
         <p className="text-[12px] font-semibold text-ink">
-          Filed as {category}
+          {overridden
+            ? `Otherwise it would be filed as ${auto_category}`
+            : `Filed as ${category}`}
         </p>
+
         <ul className="space-y-1.5">
-          {reason.map((entry) => (
+          {(category_reason ?? []).map((entry) => (
             <li key={entry.rule} className="flex items-start justify-between gap-2 text-[12px] text-dim">
               <span>{RULE_EXPLANATIONS[entry.rule] ?? entry.rule}</span>
               <span className="num shrink-0 text-faint">
@@ -190,6 +222,7 @@ function WhyPopover({ reason, category })
             </li>
           ))}
         </ul>
+
         <p className="border-t border-line pt-2 text-[11px] text-faint">
           Rules only — no AI read your mail.
         </p>
@@ -198,9 +231,31 @@ function WhyPopover({ reason, category })
   )
 }
 
-function EmailRow({ message, on_dismiss, variants })
+function RowAction({ icon, label, on_click, tone })
+{
+  const ActionIcon = icon
+
+  return (
+    <button
+      type="button"
+      onClick={on_click}
+      className={cn(
+        'inline-flex cursor-pointer items-center gap-1 rounded-[8px] px-1.5 py-1 text-[11px] font-medium transition-colors hover:bg-panel',
+        'accent' === tone ? 'text-accent' : 'text-faint hover:text-ink'
+      )}
+    >
+      <ActionIcon className="size-3.5"/>
+      {label}
+    </button>
+  )
+}
+
+function EmailRow({ message, on_dismiss, on_rule, on_unrule, variants })
 {
   const sender = message.from_name || message.from_email
+  const tab = bucket_of(message.category)
+  const is_blocked_by_me = 'blocked' === message.category && message.category !== message.auto_category
+  const is_pinned_by_me = 'priority' === message.category && message.category !== message.auto_category
 
   return (
     <motion.li
@@ -242,18 +297,39 @@ function EmailRow({ message, on_dismiss, variants })
             Open in Gmail
           </a>
 
-          <button
-            type="button"
-            onClick={() => on_dismiss(message.id)}
-            className="inline-flex cursor-pointer items-center gap-1 rounded-[8px] px-1.5 py-1 text-[11px] font-medium text-faint transition-colors hover:bg-panel hover:text-ink"
-          >
-            <EyeOffIcon className="size-3.5"/>
-            Dismiss
-          </button>
-
-          {message.category_reason?.length > 0 && (
-            <WhyPopover reason={message.category_reason} category={message.category}/>
+          {/* Blocking is about the sender, not this one email — say so in the label,
+              or people will expect it to behave like Dismiss. And it is emphatically
+              NOT "mark as spam": Pryvora cannot mark anything in Gmail, and a
+              read-only integration must not imply that it can. */}
+          {('blocked' !== tab) && (
+            <RowAction
+              icon={BanIcon}
+              label="Never show this sender"
+              on_click={() => on_rule(message.from_email, 'blocked')}
+            />
           )}
+
+          {('needs_you' !== tab) && (
+            <RowAction
+              icon={PinIcon}
+              label="Always show this sender"
+              on_click={() => on_rule(message.from_email, 'always_show')}
+            />
+          )}
+
+          {(is_blocked_by_me || is_pinned_by_me) && (
+            <RowAction
+              icon={RotateCcwIcon}
+              label={is_blocked_by_me ? 'Unblock sender' : 'Stop pinning'}
+              on_click={() => on_unrule(message.from_email)}
+            />
+          )}
+
+          {('blocked' !== tab) && (
+            <RowAction icon={EyeOffIcon} label="Dismiss" on_click={() => on_dismiss(message.id)}/>
+          )}
+
+          {message.category_reason?.length > 0 && <WhyPopover message={message}/>}
 
           {message.unsubscribe_url && (
             <a
@@ -282,7 +358,8 @@ export default function Inbox()
 
   const [messages, set_messages] = useState([])
   const [stats, set_stats] = useState(null)
-  const [tab, set_tab] = useState('priority')
+  const [rules, set_rules] = useState([])
+  const [tab, set_tab] = useState('needs_you')
   const [loading, set_loading] = useState(true)
   const [error, set_error] = useState('')
   const [connected, set_connected] = useState(true)
@@ -294,9 +371,10 @@ export default function Inbox()
 
     try
     {
-      const [list_response, stats_response, providers_response] = await Promise.all([
+      const [list_response, stats_response, rules_response, providers_response] = await Promise.all([
         api_request(`${import.meta.env.VITE_API_URL}/api/email?category=${tab}`),
         api_request(`${import.meta.env.VITE_API_URL}/api/email/stats`),
+        api_request(`${import.meta.env.VITE_API_URL}/api/email/rules`),
         api_request(`${import.meta.env.VITE_API_URL}/api/integration/providers`),
       ])
 
@@ -311,6 +389,7 @@ export default function Inbox()
       set_connected(Boolean(gmail?.account))
       set_messages((await list_response.json()).items)
       set_stats(await stats_response.json())
+      set_rules(rules_response.ok ? await rules_response.json() : [])
     }
     catch (err)
     {
@@ -349,8 +428,66 @@ export default function Inbox()
     }
   }
 
-  const noise_count = stats?.noise ?? 0
+  // A rule is about the sender, so it can move mail that is not on screen. Reload
+  // the whole tab rather than patching the one row the user clicked.
+  const handle_rule = async (sender_email, verdict) =>
+  {
+    set_error('')
+
+    try
+    {
+      const response = await api_request(`${import.meta.env.VITE_API_URL}/api/email/rules`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sender_email, verdict }),
+      })
+
+      if (!response.ok)
+      {
+        throw new Error('Could not save that rule.')
+      }
+
+      await load()
+    }
+    catch (err)
+    {
+      set_error(err.message)
+    }
+  }
+
+  const handle_unrule = async (sender_email) =>
+  {
+    const rule = rules.find((candidate) => candidate.sender_email === sender_email)
+
+    if (!rule)
+    {
+      return
+    }
+
+    set_error('')
+
+    try
+    {
+      const response = await api_request(`${import.meta.env.VITE_API_URL}/api/email/rules/${rule.id}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok)
+      {
+        throw new Error('Could not remove that rule.')
+      }
+
+      await load()
+    }
+    catch (err)
+    {
+      set_error(err.message)
+    }
+  }
+
   const needs_you_count = stats?.needs_you ?? 0
+  const noise_count = stats?.noise ?? 0
+  const blocked_count = stats?.blocked ?? 0
 
   return (
     <AppLayout>
@@ -367,7 +504,7 @@ export default function Inbox()
             </h1>
             <p className="text-sm text-dim">
               {stats
-                ? `${needs_you_count} need you · ${noise_count} filed as noise.`
+                ? `${needs_you_count} need you · ${noise_count} noise · ${blocked_count} blocked.`
                 : 'Sorting the mail that matters from the mail that does not.'}
             </p>
           </div>
@@ -384,22 +521,29 @@ export default function Inbox()
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-1" role="tablist">
               <FilterPill
-                is_active={'priority' === tab}
+                is_active={'needs_you' === tab}
                 icon={UserRoundIcon}
                 label="Needs you"
                 count={needs_you_count}
-                on_click={() => set_tab('priority')}
+                on_click={() => set_tab('needs_you')}
               />
               <FilterPill
-                is_active={'noise' === tab}
+                is_active={'noise' === tab || NOISE_CATEGORIES.includes(tab)}
                 icon={MailIcon}
                 label="Noise"
                 count={noise_count}
                 on_click={() => set_tab('noise')}
               />
+              <FilterPill
+                is_active={'blocked' === tab}
+                icon={BanIcon}
+                label="Blocked"
+                count={blocked_count}
+                on_click={() => set_tab('blocked')}
+              />
             </div>
 
-            {('priority' !== tab) && (
+            {('noise' === tab || NOISE_CATEGORIES.includes(tab)) && (
               <div className="flex flex-wrap items-center gap-1" role="tablist">
                 {NOISE_TABS.map((noise_tab) => (
                   <FilterPill
@@ -409,10 +553,18 @@ export default function Inbox()
                     label={noise_tab.label}
                     count={stats?.by_category?.[noise_tab.key] ?? 0}
                     size="sm"
-                    on_click={() => set_tab(noise_tab.key)}
+                    on_click={() => set_tab(noise_tab.key === tab ? 'noise' : noise_tab.key)}
                   />
                 ))}
               </div>
+            )}
+
+            {/* Said on the tab where a user is most likely to assume otherwise. */}
+            {('blocked' === tab) && (
+              <p className="text-[12px] text-faint">
+                Hidden from your inbox here. These emails are untouched in Gmail —
+                Pryvora cannot archive or delete anything.
+              </p>
             )}
           </div>
         )}
@@ -453,9 +605,9 @@ export default function Inbox()
           <div className="flex flex-col items-center gap-3 rounded-[14px] border border-line bg-panel-sunk px-6 py-12 text-center">
             <InboxIcon className="size-8 text-faint"/>
             <p className="text-sm text-dim">
-              {'priority' === tab
-                ? 'Nothing needs you right now.'
-                : 'Nothing here.'}
+              {'needs_you' === tab && 'Nothing needs you right now.'}
+              {'blocked' === tab && 'You have not blocked any senders yet.'}
+              {'needs_you' !== tab && 'blocked' !== tab && 'Nothing here.'}
             </p>
           </div>
         )}
@@ -473,6 +625,8 @@ export default function Inbox()
                   key={message.id}
                   message={message}
                   on_dismiss={handle_dismiss}
+                  on_rule={handle_rule}
+                  on_unrule={handle_unrule}
                   variants={item_variants}
                 />
               ))}
@@ -480,7 +634,7 @@ export default function Inbox()
           </motion.ul>
         )}
 
-        {!loading && !error && connected && messages.length > 0 && 'priority' !== tab && (
+        {!loading && !error && connected && messages.length > 0 && 'needs_you' !== tab && (
           <p className="text-[12px] text-faint">
             Unsubscribe links open in your browser. Pryvora never clicks them for you.
           </p>

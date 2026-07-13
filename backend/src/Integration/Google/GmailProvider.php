@@ -7,12 +7,15 @@ namespace App\Integration\Google;
 use App\Entity\ConnectedAccount;
 use App\Entity\User;
 use App\Enum\IntegrationStatus;
+use App\Enum\SenderVerdict;
 use App\Integration\CredentialForm;
 use App\Integration\Exception\IntegrationException;
 use App\Integration\IntegrationProviderInterface;
 use App\Integration\OAuthProviderInterface;
 use App\Repository\EmailMessageRepository;
+use App\Repository\SenderRuleRepository;
 use App\Service\ConnectedAccountCredentials;
+use App\Triage\EffectiveCategory;
 use App\Triage\TriageClassifier;
 use Doctrine\ORM\EntityManagerInterface;
 
@@ -42,14 +45,23 @@ final class GmailProvider implements IntegrationProviderInterface, OAuthProvider
     private const CORRESPONDENT_SAMPLE = 300;
     private const CORRESPONDENT_TTL = '-24 hours';
 
+    /**
+     * The user's sender rules, loaded once at the top of sync().
+     *
+     * @var array<string, SenderVerdict>
+     */
+    private array $sender_rules = [];
+
     public function __construct(
         private readonly GoogleOAuthClient $oauth_client,
         private readonly GoogleTokenProvider $token_provider,
         private readonly GmailClient $gmail_client,
         private readonly GmailMessageMapper $mapper,
         private readonly TriageClassifier $classifier,
+        private readonly EffectiveCategory $effective_category,
         private readonly ConnectedAccountCredentials $credentials,
         private readonly EmailMessageRepository $email_message_repository,
+        private readonly SenderRuleRepository $sender_rule_repository,
         private readonly EntityManagerInterface $entity_manager,
     ) {
     }
@@ -163,6 +175,15 @@ final class GmailProvider implements IntegrationProviderInterface, OAuthProvider
     {
         $access_token = $this->token_provider->get_access_token($account);
         $state = $account->getSyncState() ?? [];
+
+        $user = $account->getUserOwner();
+
+        // Loaded once for the whole sync rather than per message: a personal block
+        // list is tens of rows, and classifying 100 messages would otherwise mean
+        // 100 SELECTs that all return the same thing.
+        $this->sender_rules = $user instanceof User
+            ? $this->sender_rule_repository->findMapForUser($user)
+            : [];
 
         $this->refresh_correspondents($account, $access_token, $state);
 
@@ -383,6 +404,16 @@ final class GmailProvider implements IntegrationProviderInterface, OAuthProvider
         if (null === $message) {
             return false;
         }
+
+        // The mapper set category from the classifier. Keep that as the auto verdict
+        // and lay any standing rule for this sender over the top — so a re-sync
+        // never resurrects a blocked sender, and un-blocking still has the original
+        // verdict to fall back to.
+        $auto = $message->getCategory();
+        $rule = $this->sender_rules[(string) $message->getFromEmail()] ?? null;
+
+        $message->setAutoCategory($auto);
+        $message->setCategory($this->effective_category->resolve($auto, $rule));
 
         $this->entity_manager->persist($message);
 
