@@ -18,9 +18,56 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_OAUTH_REDIRECT_URI: ${GOOGLE_OAUTH_REDIRECT_URI:-http://localhost:8000/api/integration/oauth/callback}
+      JARVIS_API_TOKEN: ${JARVIS_API_TOKEN:-}
+      JARVIS_USER_EMAIL: ${JARVIS_USER_EMAIL:-}
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      - pryvora_network
+
+  # The assistant. Talks to Symfony over the internal network, so it uses the
+  # container port 8000 regardless of whatever the host maps it to.
+  jarvis:
+    build:
+      context: ./jarvis
+    container_name: pryvora_jarvis
+    ports:
+      - "8100:8100"
+    volumes:
+      - ./jarvis:/app
+    # jarvis/.env is the single source for this container's secrets — the API
+    # token plus the assistant's own keys. required:false so a fresh clone
+    # without it still starts; the service then fails closed on 503 rather than
+    # compose refusing to come up at all.
+    env_file:
+      - path: ./jarvis/.env
+        required: false
+    environment:
+      PRYVORA_API_URL: http://backend:8000
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      backend:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    networks:
+      - pryvora_network
+
+  # Short-term conversation history only. 6379 and 6380 are both already taken
+  # on this host, hence 6390 — containers still talk to it on 6379.
+  redis:
+    image: redis:7-alpine
+    container_name: pryvora_redis
+    ports:
+      - "6390:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
     networks:
       - pryvora_network
 
@@ -138,6 +185,7 @@ volumes:
   frontend_node_modules:
   postgres_data:
   elasticsearch_data:
+  redis_data:
 
 networks:
   pryvora_network:

@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.venv/
+
+# Jarvis' memory is Jakub's, not the repo's: personal facts, preferences and
+# real conversation transcripts, in a public repo. memory.py creates the
+# directory on import and the files on first write, so a clone starts empty and
+# learns from scratch.
+memory/

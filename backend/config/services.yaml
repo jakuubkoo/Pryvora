@@ -31,6 +31,11 @@ services:
             $syncLimiter: '@limiter.integration_sync'
             $testLimiter: '@limiter.integration_test'
 
+    App\Controller\JarvisController:
+        arguments:
+            $jarvisApiToken: '%env(JARVIS_API_TOKEN)%'
+            $jarvisUserEmail: '%env(JARVIS_USER_EMAIL)%'
+
     App\Integration\Google\GoogleOAuthClient:
         arguments:
             $client_id: '%env(GOOGLE_CLIENT_ID)%'
@@ -51,6 +56,12 @@ when@test:
             public: true
             autowire: true
             autoconfigure: true
+
+        # Fixed values so the test suite needs no Jarvis env vars at all.
+        App\Controller\JarvisController:
+            arguments:
+                $jarvisApiToken: 'test-jarvis-token'
+                $jarvisUserEmail: 'jarvis_test@example.com'
 
         # Use empty host for tests - ElasticsearchClientFactory will handle this gracefully
         App\Service\Search\ElasticsearchClientFactory:

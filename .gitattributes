@@ -1,0 +1,8 @@
+# core.autocrlf=true (the Windows/WSL default) rewrites these with CRLF on
+# checkout. The containers then fail with "bootstrap.sh: not found", because
+# exec chokes on a "#!/bin/bash\r" shebang. Shell scripts and Dockerfiles are
+# read by Linux, never by Notepad — pin them to LF.
+*.sh text eol=lf
+Dockerfile* text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
