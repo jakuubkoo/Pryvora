@@ -62,6 +62,9 @@ jobs:
           echo "JWT_PUBLIC_KEY=%kernel.project_dir%/config/jwt/public.pem" >> .env
           echo "JWT_PASSPHRASE=test_passphrase" >> .env
           echo "PRYVORA_ENCRYPTION_KEY=test_encryption_key_32_chars_long!!" >> .env
+          echo "GOOGLE_CLIENT_ID=test_client_id.apps.googleusercontent.com" >> .env
+          echo "GOOGLE_CLIENT_SECRET=test_client_secret" >> .env
+          echo "GOOGLE_OAUTH_REDIRECT_URI=http://localhost:8000/api/integration/oauth/callback" >> .env
 
       - name: Create .env.test file for CI
         run: |
@@ -79,6 +82,9 @@ jobs:
           echo "ELASTICSEARCH_HOST=http://localhost:9200" >> .env.test
           echo "ELASTICSEARCH_INDEX_NAME=pryvora_test" >> .env.test
           echo "MESSENGER_TRANSPORT_DSN=doctrine://default?auto_setup=0" >> .env.test
+          echo "GOOGLE_CLIENT_ID=test_client_id.apps.googleusercontent.com" >> .env.test
+          echo "GOOGLE_CLIENT_SECRET=test_client_secret" >> .env.test
+          echo "GOOGLE_OAUTH_REDIRECT_URI=http://localhost:8000/api/integration/oauth/callback" >> .env.test
 
       - name: Generate JWT keys
         run: |
