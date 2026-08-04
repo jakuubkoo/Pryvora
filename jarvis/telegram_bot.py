@@ -11,9 +11,11 @@ import asyncio
 import io
 import logging
 import os
+import re
 
 from telegram import BotCommand, Update
-from telegram.error import TelegramError
+from telegram.constants import ParseMode
+from telegram.error import BadRequest, TelegramError
 from telegram.ext import (
     AIORateLimiter,
     Application,
@@ -49,22 +51,75 @@ _app: Application | None = None
 
 
 async def _say(update: Update, text: str) -> None:
-    """Deliver a reply, tolerating anything Telegram throws.
+    """Deliver a reply as Markdown, tolerating anything Telegram throws.
 
     AIORateLimiter already retries a 429 for us; an error surfacing here means
     it exhausted those retries, and a dropped reply is not worth killing the
     handler over."""
+    try:
+        await update.message.reply_text(_markdown_safe(text), parse_mode=ParseMode.MARKDOWN)
+
+        return
+    except BadRequest:
+        # Telegram rejects the whole message on unbalanced markup rather than
+        # degrading it, and the model will eventually emit a stray * or `.
+        # Resend raw: mangled formatting beats a silently lost answer.
+        log.warning("markdown rejected, resending as plain text")
+    except TelegramError:
+        log.exception("could not deliver reply")
+
+        return
+
     try:
         await update.message.reply_text(text)
     except TelegramError:
         log.exception("could not deliver reply")
 
 
+_MARKUP = re.compile(r"[*`]+")
+_CODE_SPAN = re.compile(r"`[^`]*`")
+# An identifier the model left bare: two word-parts joined by an underscore.
+_BARE_ID = re.compile(r"(?<![\w`*])(\w+_\w[\w.]*)(?![\w`*])")
+
+
+def _markdown_safe(text: str) -> str:
+    """Repair the two mistakes the model reliably makes about Telegram's legacy
+    Markdown, which no amount of prompting reliably prevents:
+
+    `**bold**` is CommonMark; Telegram wants `*bold*`. And a bare identifier
+    like due_date reads as an italic marker — one unmatched underscore makes
+    Telegram reject the whole message, so the reply arrives as raw text.
+
+    Rewriting is deterministic and cheap; the model only has to get the meaning
+    right, not the escaping.
+    """
+    text = re.sub(r"\*\*(.+?)\*\*", r"*\1*", text, flags=re.S)
+
+    # Only outside existing code spans — what is already fenced is correct.
+    out, last = [], 0
+
+    for span in _CODE_SPAN.finditer(text):
+        out.append(_BARE_ID.sub(r"`\1`", text[last : span.start()]))
+        out.append(span.group())
+        last = span.end()
+
+    out.append(_BARE_ID.sub(r"`\1`", text[last:]))
+
+    return "".join(out)
+
+
+def _spoken(text: str) -> str:
+    """Strip the Markdown before synthesis — it is for the eye, and ElevenLabs
+    would otherwise read the asterisks out loud. Underscores become spaces so
+    `add_task` is spoken as two words rather than spelled."""
+    return _MARKUP.sub("", text).replace("• ", "").replace("_", " ")
+
+
 async def _speak(update: Update, text: str) -> bool:
     """Send the reply as a voice note. Returns whether it actually landed, so
     the caller can fall back to text — in voice mode this is the only copy of
     the answer, and a failed synthesis would otherwise lose it silently."""
-    audio = await voice.synthesize(text, voice.OPUS)
+    audio = await voice.synthesize(_spoken(text), voice.OPUS)
 
     if audio is None:
         return False
@@ -126,11 +181,7 @@ Dlouhodobou paměť /reset nemaže — jen vlákno konverzace."""
 
 
 async def _on_help(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
-    try:
-        await update.message.reply_text(HELP, parse_mode="Markdown")
-    except TelegramError:
-        # Markdown is the only thing that can fail here; the text still matters.
-        await _say(update, HELP)
+    await _say(update, HELP)
 
 
 async def _on_reset(update: Update, _: ContextTypes.DEFAULT_TYPE) -> None:
