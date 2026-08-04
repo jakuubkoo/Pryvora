@@ -8,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { event_color, tint, format_event_range, format_time } from './event_utils'
+import { event_color, tint, format_event_range, format_time, source_label } from './event_utils'
 
 const icon_class = 'mt-px h-3.5 w-3.5 flex-none text-faint'
 
@@ -61,18 +61,25 @@ export default function EventDetailDialog({
     return null
   }
 
-  const color = event_color(event.id)
+  const color = event_color(event)
 
   return (
     <Dialog open={open} onOpenChange={handle_open_change}>
       <DialogContent className="panel w-[calc(100vw-2rem)] sm:max-w-[460px]">
         <DialogHeader className="text-left">
-          <span
-            className="mb-1 w-fit rounded-pill px-2.5 py-1 text-[11px] font-bold"
-            style={{ background: tint(color, 13), color }}
-          >
-            {format(event.starts_at, 'EEEE d MMMM')}
-          </span>
+          <div className="mb-1 flex flex-wrap items-center gap-1.5">
+            <span
+              className="w-fit rounded-pill px-2.5 py-1 text-[11px] font-bold"
+              style={{ background: tint(color, 13), color }}
+            >
+              {format(event.starts_at, 'EEEE d MMMM')}
+            </span>
+            {event.source && (
+              <span className="w-fit rounded-pill px-2.5 py-1 text-[11px] font-bold text-faint ring-1 ring-inset ring-line">
+                {source_label(event)}
+              </span>
+            )}
+          </div>
           <DialogTitle className="text-[19px] font-bold leading-tight tracking-[-0.02em] text-ink">
             {event.title}
           </DialogTitle>

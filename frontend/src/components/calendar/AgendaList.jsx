@@ -53,7 +53,7 @@ export default function AgendaList({ days, events, on_open_event, on_create, per
           {/* Events */}
           <div className="flex min-w-0 flex-1 flex-col gap-1.5">
             {day_events.map(event => {
-              const color = event_color(event.id)
+              const color = event_color(event)
 
               return (
                 <button

@@ -258,6 +258,13 @@ class EventController extends AbstractController
             'reminder_at' => $event->getReminderAt()?->format(\DateTimeInterface::ATOM),
             'created_at' => $event->getCreatedAt()?->format(\DateTimeInterface::ATOM),
             'updated_at' => $event->getUpdatedAt()?->format(\DateTimeInterface::ATOM),
+            // Which calendar this came from. Null provider means the event was
+            // created here and lives nowhere else. The account id is exposed so
+            // the UI can tell two accounts of the same provider apart.
+            'source' => [
+                'provider' => $event->getConnectedAccount()?->getProvider(),
+                'account_id' => $event->getConnectedAccount()?->getId(),
+            ],
         ];
     }
 }

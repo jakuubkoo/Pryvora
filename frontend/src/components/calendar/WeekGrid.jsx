@@ -95,8 +95,8 @@ export default function WeekGrid({ cursor, events, on_open_event, on_create_on_d
                       onClick={() => on_open_event(event)}
                       className="truncate rounded-[7px] px-1.5 py-1 text-left text-[11.5px] font-semibold transition-opacity hover:opacity-80"
                       style={{
-                        background: tint(event_color(event.id), 13),
-                        color: event_color(event.id),
+                        background: tint(event_color(event), 13),
+                        color: event_color(event),
                       }}
                     >
                       {event.title}
@@ -148,7 +148,7 @@ export default function WeekGrid({ cursor, events, on_open_event, on_create_on_d
 
                     {timed.map(event => {
                       const { top, height } = slot_for(event, day)
-                      const color = event_color(event.id)
+                      const color = event_color(event)
 
                       return (
                         <button

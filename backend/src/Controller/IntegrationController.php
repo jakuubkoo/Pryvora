@@ -443,6 +443,27 @@ class IntegrationController extends AbstractController
     }
 
     /**
+     * Permissions the provider asks for that this account has not granted.
+     *
+     * Non-empty means the grant predates a scope the provider has since added —
+     * a Gmail-only connection made before Calendar existed, say. The sync skips
+     * that half rather than failing, so the UI needs this to explain the gap and
+     * offer a reconnect.
+     *
+     * @return list<string>
+     */
+    private function missing_scopes(ConnectedAccount $account): array
+    {
+        $provider = $this->registry->get((string) $account->getProvider());
+
+        if (!$provider instanceof OAuthProviderInterface) {
+            return [];
+        }
+
+        return array_values(array_diff($provider->get_scopes(), $account->getScopes() ?? []));
+    }
+
+    /**
      * Never exposes the credential bag.
      *
      * @return array<string, mixed>
@@ -459,6 +480,7 @@ class IntegrationController extends AbstractController
             'created_at' => $account->getCreatedAt()?->format(\DateTimeInterface::ATOM),
             'target_calendar_href' => $account->getTargetCalendarHref(),
             'calendars' => $this->list_calendars($account),
+            'missing_scopes' => $this->missing_scopes($account),
         ];
     }
 }
