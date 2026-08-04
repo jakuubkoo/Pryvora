@@ -18,9 +18,30 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_OAUTH_REDIRECT_URI: ${GOOGLE_OAUTH_REDIRECT_URI:-http://localhost:8000/api/integration/oauth/callback}
+      JARVIS_API_TOKEN: ${JARVIS_API_TOKEN:-}
+      JARVIS_USER_EMAIL: ${JARVIS_USER_EMAIL:-}
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      - pryvora_network
+
+  # The assistant. Talks to Symfony over the internal network, so it uses the
+  # container port 8000 regardless of whatever the host maps it to.
+  jarvis:
+    build:
+      context: ./jarvis
+    container_name: pryvora_jarvis
+    ports:
+      - "8100:8100"
+    volumes:
+      - ./jarvis:/app
+    environment:
+      PRYVORA_API_URL: http://backend:8000
+      JARVIS_API_TOKEN: ${JARVIS_API_TOKEN:-}
+    depends_on:
+      backend:
+        condition: service_started
     networks:
       - pryvora_network
 

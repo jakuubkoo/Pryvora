@@ -22,6 +22,16 @@ security:
             stateless: true
             security: false
 
+        # Jarvis presents an opaque service token, not a JWT, so it needs its own
+        # firewall rather than a PUBLIC_ACCESS rule under `api`: the lexik
+        # authenticator sees the Authorization: Bearer header, fails to parse it
+        # as a JWT and 401s before the controller ever runs. The controller
+        # checks the token itself.
+        jarvis:
+            pattern: ^/api/jarvis
+            stateless: true
+            security: false
+
         api:
             pattern: ^/api
             stateless: true

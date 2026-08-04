@@ -65,6 +65,8 @@ jobs:
           echo "GOOGLE_CLIENT_ID=test_client_id.apps.googleusercontent.com" >> .env
           echo "GOOGLE_CLIENT_SECRET=test_client_secret" >> .env
           echo "GOOGLE_OAUTH_REDIRECT_URI=http://localhost:8000/api/integration/oauth/callback" >> .env
+          echo "JARVIS_API_TOKEN=test_jarvis_token" >> .env
+          echo "JARVIS_USER_EMAIL=jarvis_test@example.com" >> .env
 
       - name: Create .env.test file for CI
         run: |
@@ -85,6 +87,8 @@ jobs:
           echo "GOOGLE_CLIENT_ID=test_client_id.apps.googleusercontent.com" >> .env.test
           echo "GOOGLE_CLIENT_SECRET=test_client_secret" >> .env.test
           echo "GOOGLE_OAUTH_REDIRECT_URI=http://localhost:8000/api/integration/oauth/callback" >> .env.test
+          echo "JARVIS_API_TOKEN=test_jarvis_token" >> .env.test
+          echo "JARVIS_USER_EMAIL=jarvis_test@example.com" >> .env.test
 
       - name: Generate JWT keys
         run: |
