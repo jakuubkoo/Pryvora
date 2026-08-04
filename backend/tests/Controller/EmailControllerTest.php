@@ -9,7 +9,7 @@ use App\Entity\EmailMessage;
 use App\Entity\User;
 use App\Enum\EmailCategory;
 use App\Enum\IntegrationStatus;
-use App\Integration\Google\GmailProvider;
+use App\Integration\Google\GoogleProvider;
 use App\Service\ConnectedAccountCredentials;
 use App\Service\EncryptionService;
 use Doctrine\ORM\EntityManagerInterface;
@@ -200,7 +200,7 @@ class EmailControllerTest extends WebTestCase
 
         $account = new ConnectedAccount();
         $account->setUserOwner($user);
-        $account->setProvider(GmailProvider::KEY);
+        $account->setProvider(GoogleProvider::KEY);
         $account->setDisplayName($auth_data['email']);
         $account->setExternalAccountId($auth_data['email']);
         $account->setStatus(IntegrationStatus::CONNECTED);

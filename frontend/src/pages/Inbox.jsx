@@ -384,7 +384,7 @@ export default function Inbox()
       }
 
       const providers = providers_response.ok ? await providers_response.json() : []
-      const gmail = providers.find((provider) => 'gmail' === provider.key)
+      const gmail = providers.find((provider) => 'google' === provider.key)
 
       set_connected(Boolean(gmail?.account))
       set_messages((await list_response.json()).items)

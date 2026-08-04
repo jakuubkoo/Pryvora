@@ -27,7 +27,7 @@ class GmailMessageMapperTest extends TestCase
 
         $this->account = new ConnectedAccount();
         $this->account->setUserOwner(new User());
-        $this->account->setProvider('gmail');
+        $this->account->setProvider('google');
         $this->account->setExternalAccountId('me@example.com');
     }
 

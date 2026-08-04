@@ -234,7 +234,7 @@ export default function MonthGrid({
                       <span
                         key={event.id}
                         className="h-1.5 w-1.5 rounded-full"
-                        style={{ background: event_color(event.id) }}
+                        style={{ background: event_color(event) }}
                         aria-hidden="true"
                       />
                     ))}

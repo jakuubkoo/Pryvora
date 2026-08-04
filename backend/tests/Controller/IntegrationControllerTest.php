@@ -8,7 +8,7 @@ use App\Entity\ConnectedAccount;
 use App\Entity\User;
 use App\Enum\IntegrationStatus;
 use App\Integration\Apple\AppleCalendarProvider;
-use App\Integration\Google\GmailProvider;
+use App\Integration\Google\GoogleProvider;
 use App\Integration\OAuth\OAuthStateSigner;
 use App\Message\PushCalendarEvent;
 use App\Service\ConnectedAccountCredentials;
@@ -218,7 +218,7 @@ class IntegrationControllerTest extends WebTestCase
         $this->assertResponseIsSuccessful();
 
         $apple = $this->find_provider($auth_data['client'], AppleCalendarProvider::KEY);
-        $gmail = $this->find_provider($auth_data['client'], GmailProvider::KEY);
+        $gmail = $this->find_provider($auth_data['client'], GoogleProvider::KEY);
 
         // This discriminator is the whole reason the frontend needs no per-provider
         // knowledge: a form is typed into, an oauth provider is redirected to.
@@ -236,7 +236,7 @@ class IntegrationControllerTest extends WebTestCase
             'HTTP_AUTHORIZATION' => 'Bearer ' . $auth_data['token'],
             'CONTENT_TYPE' => 'application/json',
         ], json_encode([
-            'provider' => GmailProvider::KEY,
+            'provider' => GoogleProvider::KEY,
             'credentials' => ['access_token' => 'a-token-i-made-up'],
         ]) ?: '');
 
@@ -246,7 +246,7 @@ class IntegrationControllerTest extends WebTestCase
     public function test_oauth_start_requires_authentication(): void
     {
         $client = static::createClient();
-        $client->request('GET', '/api/integration/oauth/' . GmailProvider::KEY . '/start');
+        $client->request('GET', '/api/integration/oauth/' . GoogleProvider::KEY . '/start');
 
         $this->assertResponseStatusCodeSame(Response::HTTP_UNAUTHORIZED);
     }
@@ -255,7 +255,7 @@ class IntegrationControllerTest extends WebTestCase
     {
         $auth_data = $this->register_and_login_user();
 
-        $auth_data['client']->request('GET', '/api/integration/oauth/' . GmailProvider::KEY . '/start', [], [], [
+        $auth_data['client']->request('GET', '/api/integration/oauth/' . GoogleProvider::KEY . '/start', [], [], [
             'HTTP_AUTHORIZATION' => 'Bearer ' . $auth_data['token'],
         ]);
 
@@ -266,8 +266,12 @@ class IntegrationControllerTest extends WebTestCase
 
         parse_str((string) parse_url($url, \PHP_URL_QUERY), $query);
 
-        // Read-only, and nothing but read-only.
-        $this->assertSame('https://www.googleapis.com/auth/gmail.readonly', $query['scope']);
+        // Both services in one grant, and read-only in both — no scope here can
+        // label mail or write a calendar event.
+        $this->assertSame(
+            'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/calendar.readonly',
+            $query['scope'],
+        );
 
         // Without these two Google withholds the refresh token on re-consent and
         // the integration dies at the first expiry with no way back.
@@ -311,14 +315,14 @@ class IntegrationControllerTest extends WebTestCase
         $client = static::createClient();
         $signer = static::getContainer()->get(OAuthStateSigner::class);
 
-        $client->request('GET', '/api/integration/oauth/callback?error=access_denied&state=' . urlencode($signer->sign(1, GmailProvider::KEY)));
+        $client->request('GET', '/api/integration/oauth/callback?error=access_denied&state=' . urlencode($signer->sign(1, GoogleProvider::KEY)));
 
         $this->assertResponseStatusCodeSame(Response::HTTP_FOUND);
 
         $location = (string) $client->getResponse()->headers->get('Location');
 
         $this->assertStringContainsString('status=error', $location);
-        $this->assertStringContainsString('integration=gmail', $location);
+        $this->assertStringContainsString('integration=' . GoogleProvider::KEY, $location);
     }
 
     public function test_patch_sets_the_target_calendar(): void

@@ -11,7 +11,7 @@ import { event_color, tint, format_time } from './event_utils'
  */
 export default function EventChip({ event, on_open, compact = false })
 {
-  const color = event_color(event.id)
+  const color = event_color(event)
 
   return (
     <button

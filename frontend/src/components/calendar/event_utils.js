@@ -55,6 +55,9 @@ export function parse_event(raw)
     ends_at: raw.ends_at ? parseISO(raw.ends_at) : null,
     all_day: Boolean(raw.all_day),
     reminder_at: raw.reminder_at ? parseISO(raw.reminder_at) : null,
+    // null provider = created here and synced nowhere.
+    source: raw.source?.provider ?? null,
+    account_id: raw.source?.account_id ?? null,
   }
 }
 
@@ -112,10 +115,37 @@ export async function extract_error(response, fallback)
 // Categorical set only — these are decorative, never semantic.
 const palette = ['var(--accent)', 'var(--gold)', 'var(--clay)', 'var(--sage)', 'var(--violet)']
 
-/** Stable per-event hue, so an event keeps its colour across refetches. */
-export function event_color(id)
+/**
+ * One hue per calendar source. With Apple, Google and local events sharing a
+ * single view, colour is the cheapest way to answer "where does this live?" —
+ * which matters, because only local and Apple events can be edited here.
+ */
+const source_colors = {
+  null: 'var(--accent)',
+  apple_calendar: 'var(--clay)',
+  google: 'var(--sage)',
+}
+
+const source_labels = {
+  null: 'Pryvora',
+  apple_calendar: 'Apple Calendar',
+  google: 'Google Calendar',
+}
+
+/** Stable hue for an event, keyed on which calendar it came from. */
+export function event_color(event)
 {
-  return palette[Math.abs(Number(id) || 0) % palette.length]
+  const source = event?.source ?? null
+
+  return source_colors[source] ?? palette[Math.abs(Number(event?.account_id) || 0) % palette.length]
+}
+
+/** Human name of the calendar an event lives in. */
+export function source_label(event)
+{
+  const source = event?.source ?? null
+
+  return source_labels[source] ?? source
 }
 
 /** Translucent tint of a token colour — the design's chip/tile fill. */

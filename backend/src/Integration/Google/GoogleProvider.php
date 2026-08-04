@@ -20,15 +20,20 @@ use App\Triage\TriageClassifier;
 use Doctrine\ORM\EntityManagerInterface;
 
 /**
- * Gmail, read-only. Mirrors metadata into EmailMessage and classifies it; never
- * labels, archives, sends or deletes anything in Gmail. The granted scope is
- * gmail.readonly and there is deliberately no write path anywhere in this package.
+ * One Google account, two read-only services: Gmail metadata into EmailMessage,
+ * and Google Calendar into CalendarEvent. They share a single ConnectedAccount
+ * and a single OAuth grant, so connecting once switches both on.
+ *
+ * Read-only throughout. Nothing here labels, archives, sends or deletes mail,
+ * and nothing writes a calendar event back to Google — iCloud remains the only
+ * calendar Pryvora writes to. There is deliberately no write path in this package.
  */
-final class GmailProvider implements IntegrationProviderInterface, OAuthProviderInterface
+final class GoogleProvider implements IntegrationProviderInterface, OAuthProviderInterface
 {
-    public const KEY = 'gmail';
+    public const KEY = 'google';
 
     private const SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
+    private const CALENDAR_SCOPE = 'https://www.googleapis.com/auth/calendar.readonly';
 
     private const BACKFILL_QUERY = 'in:inbox newer_than:30d';
     private const MAX_BACKFILL_MESSAGES = 500;
@@ -52,11 +57,21 @@ final class GmailProvider implements IntegrationProviderInterface, OAuthProvider
      */
     private array $sender_rules = [];
 
+    /**
+     * The calendar slice of sync state, held for the duration of one sync() so
+     * that save_state — which the Gmail half calls repeatedly as it pages — can
+     * write both slices without clobbering the other one.
+     *
+     * @var array<string, mixed>
+     */
+    private array $calendar_state = [];
+
     public function __construct(
         private readonly GoogleOAuthClient $oauth_client,
         private readonly GoogleTokenProvider $token_provider,
         private readonly GmailClient $gmail_client,
         private readonly GmailMessageMapper $mapper,
+        private readonly GoogleCalendarSync $calendar_sync,
         private readonly TriageClassifier $classifier,
         private readonly EffectiveCategory $effective_category,
         private readonly ConnectedAccountCredentials $credentials,
@@ -73,11 +88,11 @@ final class GmailProvider implements IntegrationProviderInterface, OAuthProvider
 
     public function get_label(): string
     {
-        return 'Gmail (read-only)';
+        return 'Google (Gmail + Calendar, read-only)';
     }
 
     /**
-     * Empty: Gmail is connected by redirect, and the frontend renders a button
+     * Empty: Google is connected by redirect, and the frontend renders a button
      * rather than a form because the provider reports auth = 'oauth'.
      */
     public function get_credential_form(): CredentialForm
@@ -87,7 +102,7 @@ final class GmailProvider implements IntegrationProviderInterface, OAuthProvider
 
     public function get_scopes(): array
     {
-        return [self::SCOPE];
+        return [self::SCOPE, self::CALENDAR_SCOPE];
     }
 
     public function is_configured(): bool
@@ -107,7 +122,7 @@ final class GmailProvider implements IntegrationProviderInterface, OAuthProvider
      */
     public function connect(User $user, array $credentials): ConnectedAccount
     {
-        throw new IntegrationException('Gmail is connected through Google sign-in, not a credentials form.');
+        throw new IntegrationException('Google is connected through Google sign-in, not a credentials form.');
     }
 
     public function complete_authorization(User $user, string $code, ?ConnectedAccount $existing): ConnectedAccount
@@ -151,14 +166,22 @@ final class GmailProvider implements IntegrationProviderInterface, OAuthProvider
 
         // pending_history_id, not history_id: it is only safe to trust once the
         // backfill that follows has actually finished. See sync().
+        //
+        // The two services keep separate slices so that a Gmail page write and a
+        // calendar cursor update cannot overwrite each other.
         $account->setSyncState([
-            'history_id' => null,
-            'pending_history_id' => $profile['historyId'],
-            'backfill_complete' => false,
-            'backfill_page_token' => null,
-            'backfill_imported' => 0,
-            'correspondents' => [],
-            'correspondents_refreshed_at' => null,
+            'gmail' => [
+                'history_id' => null,
+                'pending_history_id' => $profile['historyId'],
+                'backfill_complete' => false,
+                'backfill_page_token' => null,
+                'backfill_imported' => 0,
+                'correspondents' => [],
+                'correspondents_refreshed_at' => null,
+            ],
+            // Reconnecting re-reads every calendar from scratch: cheap, and it
+            // repairs anything a stale cursor might have missed.
+            'calendar' => [],
         ]);
 
         return $account;
@@ -171,11 +194,50 @@ final class GmailProvider implements IntegrationProviderInterface, OAuthProvider
         return true;
     }
 
+    /**
+     * Both halves run on one access token and their counts are summed, so a
+     * quiet mailbox with a busy calendar still reports work done.
+     */
     public function sync(ConnectedAccount $account): int
     {
         $access_token = $this->token_provider->get_access_token($account);
         $state = $account->getSyncState() ?? [];
 
+        $this->calendar_state = \is_array($state['calendar'] ?? null) ? $state['calendar'] : [];
+
+        $synced = $this->sync_gmail($account, $access_token, \is_array($state['gmail'] ?? null) ? $state['gmail'] : []);
+        $synced += $this->sync_calendar($account, $access_token);
+
+        return $synced;
+    }
+
+    /**
+     * Skipped, not failed, when the grant predates the calendar scope. An
+     * account connected before Calendar existed keeps syncing mail instead of
+     * erroring every 15 minutes over a permission the user never gave.
+     */
+    private function sync_calendar(ConnectedAccount $account, string $access_token): int
+    {
+        if (!\in_array(self::CALENDAR_SCOPE, $account->getScopes() ?? [], true)) {
+            return 0;
+        }
+
+        [$synced, $this->calendar_state] = $this->calendar_sync->sync($account, $access_token, $this->calendar_state);
+
+        // The Gmail half has already written its slice; re-read it so saving the
+        // calendar cursor preserves whatever page it stopped on.
+        $gmail_state = ($account->getSyncState() ?? [])['gmail'] ?? [];
+
+        $this->save_state($account, \is_array($gmail_state) ? $gmail_state : []);
+
+        return $synced;
+    }
+
+    /**
+     * @param array<string, mixed> $state
+     */
+    private function sync_gmail(ConnectedAccount $account, string $access_token, array $state): int
+    {
         $user = $account->getUserOwner();
 
         // Loaded once for the whole sync rather than per message: a personal block
@@ -441,11 +503,15 @@ final class GmailProvider implements IntegrationProviderInterface, OAuthProvider
     }
 
     /**
-     * @param array<string, mixed> $state
+     * The Gmail half calls this repeatedly as it pages, so it always writes both
+     * slices — writing only Gmail's would drop the calendar cursor and force a
+     * full re-read of every calendar on the next tick.
+     *
+     * @param array<string, mixed> $state the Gmail slice
      */
     private function save_state(ConnectedAccount $account, array $state): void
     {
-        $account->setSyncState($state);
+        $account->setSyncState(['gmail' => $state, 'calendar' => $this->calendar_state]);
         $account->setLastSyncedAt(new \DateTimeImmutable());
 
         $this->entity_manager->flush();

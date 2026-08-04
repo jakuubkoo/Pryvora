@@ -44,7 +44,7 @@ export default function DayPeekDialog({
 
         <div className="flex flex-col gap-1.5">
           {day_events.map(event => {
-            const color = event_color(event.id)
+            const color = event_color(event)
 
             return (
               <button

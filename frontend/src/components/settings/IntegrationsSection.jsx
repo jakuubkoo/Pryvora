@@ -98,7 +98,9 @@ export default function IntegrationsSection()
 
     if ('connected' === status)
     {
-      set_success('Gmail connected. The first sync is running in the background.')
+      // Deliberately unnamed: the banner lands on the card the user just came
+      // from, and there is now more than one OAuth provider to be wrong about.
+      set_success('Connected. The first sync is running in the background.')
     }
     else
     {
@@ -447,9 +449,22 @@ export default function IntegrationsSection()
                   connect dialog on the OAuth path to put this in. */}
               {'oauth' === provider.auth && !provider.account && false !== provider.available && (
                 <p className="text-[12px] text-faint">
-                  Read-only: Pryvora can never label, archive or delete your mail.
+                  Read-only: Pryvora can never label, archive or delete your mail, and
+                  never changes your Google calendars — it only reads them into one view.
                   Google expires access every 7 days for personal accounts, so you will
                   need to reconnect weekly.
+                </p>
+              )}
+
+              {/* A grant made before the provider asked for a scope keeps working
+                  for whatever it already covers, so this is a nudge rather than an
+                  error — the missing half is skipped, not broken. */}
+              {provider.account?.missing_scopes?.length > 0 && (
+                <p className="text-[12px] text-faint">
+                  This connection predates some permissions Pryvora now uses. Reconnect to
+                  enable {provider.account.missing_scopes.some((scope) => scope.includes('calendar'))
+                    ? 'calendar sync'
+                    : 'the rest'}.
                 </p>
               )}
 
