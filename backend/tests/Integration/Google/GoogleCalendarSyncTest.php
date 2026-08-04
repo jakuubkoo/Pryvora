@@ -143,6 +143,50 @@ class GoogleCalendarSyncTest extends KernelTestCase
     }
 
     /**
+     * Google rejects the sync token for its public holiday calendars on every
+     * run, so a full re-read is permanent rather than exceptional. Unchanged
+     * events must not be rewritten, or each tick churns hundreds of rows.
+     */
+    public function test_unchanged_events_are_not_rewritten(): void
+    {
+        $account = $this->account();
+        $event = ['etag' => '"tag-1"'] + $this->event('a', 'Dentist');
+
+        $this->sync([
+            $this->calendar_list(),
+            $this->events([$event], next_sync_token: 'cursor-1'),
+        ])->sync($account, self::TOKEN, []);
+
+        [$count] = $this->sync([
+            $this->calendar_list(),
+            $this->events([$event], next_sync_token: 'cursor-2'),
+        ])->sync($account, self::TOKEN, []);
+
+        $this->assertSame(0, $count);
+    }
+
+    public function test_changed_etag_still_updates(): void
+    {
+        $account = $this->account();
+
+        $this->sync([
+            $this->calendar_list(),
+            $this->events([['etag' => '"tag-1"'] + $this->event('a', 'Dentist')], next_sync_token: 'cursor-1'),
+        ])->sync($account, self::TOKEN, []);
+
+        [$count] = $this->sync([
+            $this->calendar_list(),
+            $this->events([['etag' => '"tag-2"'] + $this->event('a', 'Dentist, moved')], next_sync_token: 'cursor-2'),
+        ])->sync($account, self::TOKEN, []);
+
+        $this->assertSame(1, $count);
+        $this->assertSame(
+            'Dentist, moved',
+            $this->repository()->findOneByAccountAndExternalUid($account, 'work/a')->getTitle(),
+        );
+    }
+
+    /**
      * A run that ends without a fresh cursor must keep the old one, or every
      * sync would silently re-read the whole calendar.
      */

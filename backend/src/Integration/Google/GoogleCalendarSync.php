@@ -128,6 +128,17 @@ final class GoogleCalendarSync
             return true;
         }
 
+        // A rejected sync token means re-reading the whole calendar, and Google
+        // rejects one on every run for its public holiday calendars — so most of
+        // what arrives is unchanged. The etag is the server's own change marker:
+        // an identical one means there is genuinely nothing to write, which
+        // keeps a permanent 410 loop from rewriting hundreds of rows a tick.
+        $etag = (string) ($event['etag'] ?? '');
+
+        if (null !== $existing && '' !== $etag && $existing->getExternalEtag() === $etag) {
+            return false;
+        }
+
         $mapped = $this->mapper->to_calendar_event($event, $calendar_id, $account, $existing);
 
         if (null === $mapped) {
